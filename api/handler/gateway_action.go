@@ -64,7 +64,7 @@ func (g *GatewayAction) AddHTTPRule(req *apimodel.AddHTTPRuleStruct) (string, er
 
 	// begin transaction
 	tx := db.GetManager().Begin()
-	if err := db.GetManager().HttpRuleDaoTransactions(tx).AddModel(httpRule); err != nil {
+	if err := db.GetManager().HTTPRuleDaoTransactions(tx).AddModel(httpRule); err != nil {
 		tx.Rollback()
 		return "", err
 	}
@@ -106,7 +106,7 @@ func (g *GatewayAction) AddHTTPRule(req *apimodel.AddHTTPRuleStruct) (string, er
 // UpdateHTTPRule updates http rule
 func (g *GatewayAction) UpdateHTTPRule(req *apimodel.UpdateHTTPRuleStruct) (string, error) {
 	tx := db.GetManager().Begin()
-	rule, err := g.dbmanager.HttpRuleDaoTransactions(tx).GetHttpRuleByID(req.HTTPRuleID)
+	rule, err := g.dbmanager.HTTPRuleDaoTransactions(tx).GetHTTPRuleByID(req.HTTPRuleID)
 	if err != nil {
 		tx.Rollback()
 		return "", err
@@ -164,22 +164,14 @@ func (g *GatewayAction) UpdateHTTPRule(req *apimodel.UpdateHTTPRuleStruct) (stri
 	if req.Domain != "" {
 		rule.Domain = req.Domain
 	}
-	if req.Path != "" {
-		rule.Path = req.Path
-	}
-	if req.Header != "" {
-		rule.Header = req.Header
-	}
-	if req.Cookie != "" {
-		rule.Cookie = req.Cookie
-	}
-	if req.Weight > 0 {
-		rule.Weight = req.Weight
-	}
+	rule.Path = req.Path
+	rule.Header = req.Header
+	rule.Cookie = req.Cookie
+	rule.Weight = req.Weight
 	if req.IP != "" {
 		rule.IP = req.IP
 	}
-	if err := db.GetManager().HttpRuleDaoTransactions(tx).UpdateModel(rule); err != nil {
+	if err := db.GetManager().HTTPRuleDaoTransactions(tx).UpdateModel(rule); err != nil {
 		tx.Rollback()
 		return "", err
 	}
@@ -196,13 +188,13 @@ func (g *GatewayAction) DeleteHTTPRule(req *apimodel.DeleteHTTPRuleStruct) (stri
 	// begin transaction
 	tx := db.GetManager().Begin()
 	// delete http rule
-	httpRule, err := g.dbmanager.HttpRuleDaoTransactions(tx).GetHttpRuleByID(req.HTTPRuleID)
+	httpRule, err := g.dbmanager.HTTPRuleDaoTransactions(tx).GetHTTPRuleByID(req.HTTPRuleID)
 	svcID := httpRule.ServiceID
 	if err != nil {
 		tx.Rollback()
 		return "", err
 	}
-	if err := g.dbmanager.HttpRuleDaoTransactions(tx).DeleteHttpRuleByID(httpRule.UUID); err != nil {
+	if err := g.dbmanager.HTTPRuleDaoTransactions(tx).DeleteHTTPRuleByID(httpRule.UUID); err != nil {
 		tx.Rollback()
 		return "", err
 	}
@@ -277,7 +269,7 @@ func (g *GatewayAction) AddTCPRule(req *apimodel.AddTCPRuleStruct) (string, erro
 		IP:            req.IP,
 		Port:          req.Port,
 	}
-	if err := g.dbmanager.TcpRuleDaoTransactions(tx).AddModel(tcpRule); err != nil {
+	if err := g.dbmanager.TCPRuleDaoTransactions(tx).AddModel(tcpRule); err != nil {
 		tx.Rollback()
 		return "", err
 	}
@@ -307,7 +299,7 @@ func (g *GatewayAction) UpdateTCPRule(req *apimodel.UpdateTCPRuleStruct, minPort
 	// begin transaction
 	tx := db.GetManager().Begin()
 	// get old tcp rule
-	tcpRule, err := g.dbmanager.TcpRuleDaoTransactions(tx).GetTcpRuleByID(req.TCPRuleID)
+	tcpRule, err := g.dbmanager.TCPRuleDaoTransactions(tx).GetTCPRuleByID(req.TCPRuleID)
 	if err != nil {
 		tx.Rollback()
 		return "", err
@@ -315,6 +307,7 @@ func (g *GatewayAction) UpdateTCPRule(req *apimodel.UpdateTCPRuleStruct, minPort
 	if len(req.RuleExtensions) > 0 {
 		// delete old rule extensions
 		if err := g.dbmanager.RuleExtensionDaoTransactions(tx).DeleteRuleExtensionByRuleID(tcpRule.UUID); err != nil {
+			logrus.Debugf("TCP rule id: %s;error delete rule extension: %v", tcpRule.UUID, err)
 			tx.Rollback()
 			return "", err
 		}
@@ -327,14 +320,12 @@ func (g *GatewayAction) UpdateTCPRule(req *apimodel.UpdateTCPRuleStruct, minPort
 			}
 			if err := g.dbmanager.RuleExtensionDaoTransactions(tx).AddModel(re); err != nil {
 				tx.Rollback()
+				logrus.Debugf("TCP rule id: %s;error add rule extension: %v", tcpRule.UUID, err)
 				return "", err
 			}
 		}
 	}
 	// update tcp rule
-	if req.ServiceID != "" {
-		tcpRule.ServiceID = req.ServiceID
-	}
 	if req.ContainerPort != 0 {
 		tcpRule.ContainerPort = req.ContainerPort
 	}
@@ -346,6 +337,7 @@ func (g *GatewayAction) UpdateTCPRule(req *apimodel.UpdateTCPRuleStruct, minPort
 		port, err := g.dbmanager.TenantServiceLBMappingPortDaoTransactions(tx).GetLBMappingPortByServiceIDAndPort(
 			tcpRule.ServiceID, tcpRule.Port)
 		if err != nil {
+			logrus.Debugf("TCP rule id: %s;error getting lb mapping port: %v", tcpRule.UUID, err)
 			tx.Rollback()
 			return "", err
 		}
@@ -353,6 +345,7 @@ func (g *GatewayAction) UpdateTCPRule(req *apimodel.UpdateTCPRuleStruct, minPort
 		// update port
 		port.Port = req.Port
 		if err := g.dbmanager.TenantServiceLBMappingPortDaoTransactions(tx).UpdateModel(port); err != nil {
+			logrus.Debugf("TCP rule id: %s;error update lb mapping port: %v", tcpRule.UUID, err)
 			tx.Rollback()
 			return "", err
 		}
@@ -360,13 +353,18 @@ func (g *GatewayAction) UpdateTCPRule(req *apimodel.UpdateTCPRuleStruct, minPort
 	} else {
 		logrus.Warningf("Expected external port > %d, but got %d", minPort, req.Port)
 	}
-	if err := g.dbmanager.TcpRuleDaoTransactions(tx).UpdateModel(tcpRule); err != nil {
+	if req.ServiceID != "" {
+		tcpRule.ServiceID = req.ServiceID
+	}
+	if err := g.dbmanager.TCPRuleDaoTransactions(tx).UpdateModel(tcpRule); err != nil {
+		logrus.Debugf("TCP rule id: %s;error updating tcp rule: %v", tcpRule.UUID, err)
 		tx.Rollback()
 		return "", err
 	}
 	// end transaction
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
+		logrus.Debugf("TCP rule id: %s;error end transaction %v", tcpRule.UUID, err)
 		return "", err
 	}
 	return tcpRule.ServiceID, nil
@@ -376,7 +374,7 @@ func (g *GatewayAction) UpdateTCPRule(req *apimodel.UpdateTCPRuleStruct, minPort
 func (g *GatewayAction) DeleteTCPRule(req *apimodel.DeleteTCPRuleStruct) (string, error) {
 	// begin transaction
 	tx := db.GetManager().Begin()
-	tcpRule, err := db.GetManager().TcpRuleDaoTransactions(tx).GetTcpRuleByID(req.TCPRuleID)
+	tcpRule, err := db.GetManager().TCPRuleDaoTransactions(tx).GetTCPRuleByID(req.TCPRuleID)
 	if err != nil {
 		tx.Rollback()
 		return "", err
@@ -387,7 +385,7 @@ func (g *GatewayAction) DeleteTCPRule(req *apimodel.DeleteTCPRuleStruct) (string
 		return "", err
 	}
 	// delete tcp rule
-	if err := db.GetManager().TcpRuleDaoTransactions(tx).DeleteTcpRule(tcpRule); err != nil {
+	if err := db.GetManager().TCPRuleDaoTransactions(tx).DeleteTCPRule(tcpRule); err != nil {
 		tx.Rollback()
 		return "", err
 	}
@@ -476,15 +474,17 @@ func (g *GatewayAction) PortExists(port int) bool {
 }
 
 // SendTask sends apply rules task
-func (g *GatewayAction) SendTask(serviceID string, action string) error {
-	service, err := db.GetManager().TenantServiceDao().GetServiceByID(serviceID)
+func (g *GatewayAction) SendTask(in map[string]interface{}) error {
+	sid := in["service_id"].(string)
+	service, err := db.GetManager().TenantServiceDao().GetServiceByID(sid)
 	if err != nil {
-		return fmt.Errorf("Unexpected error occurred while getting Service by ServiceID(%s): %v", serviceID, err)
+		return fmt.Errorf("Unexpected error occurred while getting Service by ServiceID(%s): %v", sid, err)
 	}
 	body := make(map[string]interface{})
-	body["service_id"] = serviceID
 	body["deploy_version"] = service.DeployVersion
-	body["action"] = action
+	for k, v := range in {
+		body[k] = v
+	}
 	err = g.mqclient.SendBuilderTopic(client.TaskStruct{
 		Topic:    client.WorkerTopic,
 		TaskType: "apply_rule",
@@ -496,9 +496,9 @@ func (g *GatewayAction) SendTask(serviceID string, action string) error {
 	return nil
 }
 
-// TCPValid checks if the ip and port for TCP is available.
+// TCPAvailable checks if the ip and port for TCP is available.
 func (g *GatewayAction) TCPAvailable(ip string, port int, ruleID string) bool {
-	rule, err := g.dbmanager.TcpRuleDao().GetTcpRuleByID(ruleID)
+	rule, err := g.dbmanager.TCPRuleDao().GetTCPRuleByID(ruleID)
 	if err != nil {
 		logrus.Warningf("error getting TCPRule by UUID(%s)", ruleID)
 		return false
@@ -531,11 +531,63 @@ func (g *GatewayAction) TCPAvailable(ip string, port int, ruleID string) bool {
 // AddIPPool adds AddIPPool
 func (g *GatewayAction) AddIPPool(req *apimodel.IPPoolStruct) error {
 	ippool := &model.IPPool{
-		EID: req.EID,
+		EID:  req.EID,
 		CIDR: req.CIDR,
 	}
 	if err := g.dbmanager.IPPoolDao().AddModel(ippool); err != nil {
 		return err
 	}
+	return nil
+}
+
+// RuleConfig -
+func (g *GatewayAction) RuleConfig(req *apimodel.RuleConfigReq) error {
+	var configs []*model.GwRuleConfig
+	// TODO: use reflect to read the field of req, huangrh
+	configs = append(configs, &model.GwRuleConfig{
+		RuleID: req.RuleID,
+		Key:    "proxy-connect-timeout",
+		Value:  strconv.Itoa(req.Body.ProxyConnectTimeout),
+	})
+	configs = append(configs, &model.GwRuleConfig{
+		RuleID: req.RuleID,
+		Key:    "proxy-send-timeout",
+		Value:  strconv.Itoa(req.Body.ProxySendTimeout),
+	})
+	configs = append(configs, &model.GwRuleConfig{
+		RuleID: req.RuleID,
+		Key:    "proxy-read-timeout",
+		Value:  strconv.Itoa(req.Body.ProxyReadTimeout),
+	})
+	configs = append(configs, &model.GwRuleConfig{
+		RuleID: req.RuleID,
+		Key:    "proxy-body-size",
+		Value:  strconv.Itoa(req.Body.ProxyBodySize),
+	})
+	setheaders := make(map[string]string)
+	for _, item := range req.Body.SetHeaders {
+		// filter same key
+		setheaders["set-header-" + item.Key] = item.Value
+	}
+	for k, v := range setheaders {
+		configs = append(configs, &model.GwRuleConfig{
+			RuleID: req.RuleID,
+			Key:    k,
+			Value:  v,
+		})
+	}
+
+	tx := db.GetManager().Begin()
+	if err := g.dbmanager.GwRuleConfigDaoTransactions(tx).DeleteByRuleID(req.RuleID); err != nil {
+		tx.Rollback()
+		return err
+	}
+	for _, cfg := range configs {
+		if err := g.dbmanager.GwRuleConfigDaoTransactions(tx).AddModel(cfg); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	tx.Commit()
 	return nil
 }

@@ -19,11 +19,10 @@
 package model
 
 import (
-	"net/url"
-	"time"
-
 	"fmt"
+	"net/url"
 	"strings"
+	"time"
 
 	dbmodel "github.com/goodrain/rainbond/db/model"
 )
@@ -323,16 +322,43 @@ type ServiceStruct struct {
 	// in: body
 	// required: false
 	ServiceOrigin string `json:"service_origin" validate:"service_origin"`
+	Kind          string `json:"kind" validate:"in:internal, third_party"`
 
 	ServiceLabel   string                               `json:"service_label"  validate:"service_label"`
 	NodeLabel      string                               `json:"node_label"  validate:"node_label"`
 	Operator       string                               `json:"operator"  validate:"operator"`
 	RepoURL        string                               `json:"repo_url" validate:"repo_url"`
 	DependIDs      []dbmodel.TenantServiceRelation      `json:"depend_ids"`
-	VolumesInfo    []dbmodel.TenantServiceVolume        `json:"volumes_info"`
+	VolumesInfo    []TenantServiceVolumeStruct          `json:"volumes_info"`
 	DepVolumesInfo []dbmodel.TenantServiceMountRelation `json:"dep_volumes_info"`
 	EnvsInfo       []dbmodel.TenantServiceEnvVar        `json:"envs_info"`
 	PortsInfo      []dbmodel.TenantServicesPort         `json:"ports_info"`
+
+	// Endpoints holds third-party service endpoints or configuraion to get endpoints.
+	Endpoints struct {
+		Static    string `json:"static"`
+		Discovery string `json:"discovery"`
+	} `json:"endpoints"`
+}
+
+//TenantServiceVolumeStruct -
+type TenantServiceVolumeStruct struct {
+	Model
+	ServiceID string ` json:"service_id"`
+	//服务类型
+	Category string `json:"category"`
+	//存储类型（share,local,tmpfs）
+	VolumeType string `json:"volume_type"`
+	//存储名称
+	VolumeName string `json:"volume_name"`
+	//主机地址
+	HostPath string `json:"host_path"`
+	//挂载地址
+	VolumePath string `json:"volume_path"`
+	//是否只读
+	IsReadOnly bool `json:"is_read_only"`
+
+	FileContent string `json:"file_content"`
 }
 
 //DependService struct for depend service
@@ -427,8 +453,8 @@ type ServicePortInnerOrOuter struct {
 		// 操作值 `close` or `open`
 		// in: body
 		// required: true
-		Operation string `json:"operation"  validate:"operation|required|in:open,close"`
-		IfCreateExPort bool `json:"if_create_ex_port"`
+		Operation      string `json:"operation"  validate:"operation|required|in:open,close"`
+		IfCreateExPort bool   `json:"if_create_ex_port"`
 	}
 }
 
@@ -883,7 +909,7 @@ type ServiceCheckStruct struct {
 		//检测来源类型
 		// in: body
 		// required: true
-		SourceType string `json:"source_type" validate:"source_type|required|in:docker-run,docker-compose,sourcecode"`
+		SourceType string `json:"source_type" validate:"source_type|required|in:docker-run,docker-compose,sourcecode,third-party-service"`
 
 		CheckOS string `json:"check_os"`
 		// 检测来源定义，
@@ -892,7 +918,7 @@ type ServiceCheckStruct struct {
 		// docker-compose: compose全文
 		// in: body
 		// required: true
-		SourceBody string `json:"source_body" validate:"source_body|required"`
+		SourceBody string `json:"source_body"`
 		TenantID   string
 		Username   string `json:"username"`
 		Password   string `json:"password"`
@@ -1190,7 +1216,7 @@ type AddTenantServiceEnvVar struct {
 	AttrName      string `validate:"env_name|required" json:"env_name"`
 	AttrValue     string `validate:"env_value|required" json:"env_value"`
 	IsChange      bool   `validate:"is_change|bool" json:"is_change"`
-	Scope         string `validate:"scope|in:outer,inner,both" json:"scope"`
+	Scope         string `validate:"scope|in:outer,inner,both,build" json:"scope"`
 }
 
 //DelTenantServiceEnvVar  应用环境变量
@@ -1203,7 +1229,7 @@ type DelTenantServiceEnvVar struct {
 	AttrName      string `validate:"env_name|required" json:"env_name"`
 	AttrValue     string `validate:"env_value" json:"env_value"`
 	IsChange      bool   `validate:"is_change|bool" json:"is_change"`
-	Scope         string `validate:"scope|in:outer,inner,both" json:"scope"`
+	Scope         string `validate:"scope|in:outer,inner,both,build" json:"scope"`
 }
 
 //ServicePorts service ports
@@ -1288,7 +1314,8 @@ type ServiceProbe struct {
 	//标志为失败的检测次数
 	FailureThreshold int `gorm:"column:failure_threshold;size:2;default:3" json:"failure_threshold" validate:"failure_threshold"`
 	//标志为成功的检测次数
-	SuccessThreshold int `gorm:"column:success_threshold;size:2;default:1" json:"success_threshold" validate:"success_threshold"`
+	SuccessThreshold int    `gorm:"column:success_threshold;size:2;default:1" json:"success_threshold" validate:"success_threshold"`
+	FailureAction    string `json:"failure_action" validate:"failure_action"`
 }
 
 //TenantServiceVolume 应用持久化记录
@@ -1345,6 +1372,7 @@ type ServiceShare struct {
 	}
 }
 
+//ExportAppStruct -
 type ExportAppStruct struct {
 	SourceDir string `json:"source_dir"`
 	Body      struct {
@@ -1356,6 +1384,134 @@ type ExportAppStruct struct {
 	}
 }
 
+//BeatchOperationRequestStruct beatch operation request body
+type BeatchOperationRequestStruct struct {
+	TenantName string `json:"tenant_name"`
+	Body       struct {
+		Operation    string                         `json:"operation" validate:"operation|required|in:start,stop,build,upgrade"`
+		BuildInfos   []BuildInfoRequestStruct       `json:"build_infos,omitempty"`
+		StartInfos   []StartOrStopInfoRequestStruct `json:"start_infos,omitempty"`
+		StopInfos    []StartOrStopInfoRequestStruct `json:"stop_infos,omitempty"`
+		UpgradeInfos []UpgradeInfoRequestStruct     `json:"upgrade_infos,omitempty"`
+	}
+}
+
+//BuildImageInfo -
+type BuildImageInfo struct {
+	// 镜像地址
+	// in: body
+	// required: false
+	ImageURL string `json:"image_url" validate:"image_url"`
+	User     string `json:"user" validate:"user"`
+	Password string `json:"password" validate:"password"`
+	Cmd      string `json:"cmd"`
+}
+
+//BuildCodeInfo -
+type BuildCodeInfo struct {
+	// git地址
+	// in: body
+	// required: false
+	RepoURL string `json:"repo_url" validate:"repo_url"`
+	// branch 分支信息
+	// in: body
+	// required: false
+	Branch string `json:"branch" validate:"branch"`
+	// 操作人员
+	// in: body
+	// required: false
+	Lang string `json:"lang" validate:"lang"`
+	// 代码服务器类型
+	// in: body
+	// required: false
+	ServerType string `json:"server_type" validate:"server_type"`
+	Runtime    string `json:"runtime"`
+	User       string `json:"user" validate:"user"`
+	Password   string `json:"password" validate:"password"`
+}
+
+//BuildSlugInfo -
+type BuildSlugInfo struct {
+	SlugPath    string `json:"slug_path"`
+	FTPHost     string `json:"ftp_host"`
+	FTPPort     string `json:"ftp_port"`
+	FTPUser     string `json:"ftp_username"`
+	FTPPassword string `json:"ftp_password"`
+}
+
+//FromImageBuildKing build from image
+var FromImageBuildKing = "build_from_image"
+
+//FromCodeBuildKing build from code
+var FromCodeBuildKing = "build_from_source_code"
+
+//FromMarketImageBuildKing build from market image
+var FromMarketImageBuildKing = "build_from_market_image"
+
+//FromMarketSlugBuildKing build from market slug
+var FromMarketSlugBuildKing = "build_from_market_slug"
+
+//BuildInfoRequestStruct -
+type BuildInfoRequestStruct struct {
+	// 变量
+	// in: body
+	// required: false
+	BuildENVs map[string]string `json:"envs" validate:"envs"`
+	// 应用构建类型
+	// in: body
+	// required: true
+	Kind string `json:"kind" validate:"kind|required"`
+	// 后续动作, 根据该值进行一键部署，如果不传值，则默认只进行构建
+	// in: body
+	// required: false
+	Action string `json:"action" validate:"action"`
+	//Event trace ID
+	EventID string `json:"event_id"`
+	// 部署的版本号
+	// in: body
+	// required: true
+	DeployVersion string `json:"deploy_version" validate:"deploy_version"`
+	//build form image
+	ImageInfo BuildImageInfo `json:"image_info,omitempty"`
+	//build from code
+	CodeInfo BuildCodeInfo `json:"code_info,omitempty"`
+	//用于云市代码包创建
+	SlugInfo BuildSlugInfo `json:"slug_info,omitempty"`
+	//tenantName
+	TenantName string            `json:"-"`
+	ServiceID  string            `json:"service_id"`
+	Configs    map[string]string `json:"configs"`
+}
+
+//UpgradeInfoRequestStruct -
+type UpgradeInfoRequestStruct struct {
+	//UpgradeVersion The target version of the upgrade
+	UpgradeVersion string `json:"upgrade_version"`
+	//Event trace ID
+	EventID   string            `json:"event_id"`
+	ServiceID string            `json:"service_id"`
+	Configs   map[string]string `json:"configs"`
+}
+
+//RollbackInfoRequestStruct -
+type RollbackInfoRequestStruct struct {
+	//RollBackVersion The target version of the rollback
+	RollBackVersion string `json:"upgrade_version"`
+	//Event trace ID
+	EventID   string            `json:"event_id"`
+	ServiceID string            `json:"service_id"`
+	Configs   map[string]string `json:"configs"`
+}
+
+//StartOrStopInfoRequestStruct -
+type StartOrStopInfoRequestStruct struct {
+	//Event trace ID
+	EventID   string            `json:"event_id"`
+	ServiceID string            `json:"service_id"`
+	Configs   map[string]string `json:"configs"`
+}
+
+//BuildMQBodyFrom -
 func BuildMQBodyFrom(app *ExportAppStruct) *MQBody {
 	return &MQBody{
 		EventID:   app.Body.EventID,
@@ -1366,6 +1522,7 @@ func BuildMQBodyFrom(app *ExportAppStruct) *MQBody {
 	}
 }
 
+//MQBody -
 type MQBody struct {
 	EventID   string `json:"event_id"`
 	GroupKey  string `json:"group_key"`
@@ -1374,6 +1531,7 @@ type MQBody struct {
 	SourceDir string `json:"source_dir"`
 }
 
+//NewAppStatusFromExport -
 func NewAppStatusFromExport(app *ExportAppStruct) *dbmodel.AppStatus {
 	fields := strings.Split(app.SourceDir, "/")
 	tarName := fields[len(fields)-1]
@@ -1387,6 +1545,7 @@ func NewAppStatusFromExport(app *ExportAppStruct) *dbmodel.AppStatus {
 	}
 }
 
+//ImportAppStruct -
 type ImportAppStruct struct {
 	EventID      string       `json:"event_id"`
 	SourceDir    string       `json:"source_dir"`
@@ -1396,6 +1555,7 @@ type ImportAppStruct struct {
 	ServiceSlug  ServiceSlug  `json:"service_slug"`
 }
 
+//ServiceImage -
 type ServiceImage struct {
 	HubUrl      string `json:"hub_url"`
 	HubUser     string `json:"hub_user"`
@@ -1403,6 +1563,7 @@ type ServiceImage struct {
 	NameSpace   string `json:"namespace"`
 }
 
+//ServiceSlug -
 type ServiceSlug struct {
 	FtpHost     string `json:"ftp_host"`
 	FtpPort     string `json:"ftp_port"`
@@ -1411,6 +1572,7 @@ type ServiceSlug struct {
 	NameSpace   string `json:"namespace"`
 }
 
+//NewAppStatusFromImport -
 func NewAppStatusFromImport(app *ImportAppStruct) *dbmodel.AppStatus {
 	var apps string
 	for _, app := range app.Apps {

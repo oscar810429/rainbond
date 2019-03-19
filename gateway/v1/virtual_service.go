@@ -35,7 +35,7 @@ const (
 //VirtualService VirtualService
 type VirtualService struct {
 	Meta
-	Enabled  bool   `json:"enable"`
+	Enabled  bool            `json:"enable"`
 	Protocol corev1.Protocol `json:"protocol"`
 	// BackendProtocol indicates which protocol should be used to communicate with the service
 	BackendProtocol        string   `json:"backend-protocol"`
@@ -52,15 +52,16 @@ type VirtualService struct {
 	//ConnectTimeout The time, in seconds, to wait for data from a new connection. If no data is received within this time, the connection will be closed. A value of 0 (zero) will disable the timeout.
 	ConnectTimeout int `json:"connect_timeout"`
 	//Timeout A connection should be closed if no additional data has been received for this period of time. A value of 0 (zero) will disable this timeout. Note that the default value may vary depending on the protocol selected.
-	Timeout int `json:"timeout"`
-
-	ServerName       string      `json:"server_name"`
-	PoolName         string      `json:"pool_name"`
-	SSLCert          *SSLCert    `json:"ssl_cert"`
-	Locations        []*Location `json:"locations"`
-	ForceSSLRedirect bool        `json:"force_ssl_redirect"`
+	Timeout          int                    `json:"timeout"`
+	ServerName       string                 `json:"server_name"`
+	PoolName         string                 `json:"pool_name"`
+	SSLCert          *SSLCert               `json:"ssl_cert"`
+	Locations        []*Location            `json:"locations"`
+	ForceSSLRedirect bool                   `json:"force_ssl_redirect"`
+	ExtensionConfig  map[string]interface{} `json:"extension_config"`
 }
 
+//Equals equals vs
 func (v *VirtualService) Equals(c *VirtualService) bool {
 	if v == c {
 		return true

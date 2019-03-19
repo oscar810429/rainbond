@@ -20,11 +20,14 @@ package template
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
+	text_template "text/template"
+
+	"github.com/Sirupsen/logrus"
 	"github.com/golang/glog"
 	"github.com/goodrain/rainbond/gateway/controller/openresty/model"
 	"github.com/goodrain/rainbond/gateway/v1"
-	"strings"
-	text_template "text/template"
 )
 
 var (
@@ -37,6 +40,7 @@ var (
 			return true
 		},
 		"buildLuaHeaderRouter": buildLuaHeaderRouter,
+		"isValidByteSize":      isValidByteSize,
 	}
 )
 
@@ -54,15 +58,21 @@ func buildLuaHeaderRouter(input interface{}) string {
 		switch c.Type {
 		case v1.HeaderType:
 			snippet := []string{}
-			condition := []string{}
+			cond1 := []string{}
+			cond2 := []string{}
 			for key, val := range c.Value {
 				snippet = append(snippet, fmt.Sprintf("\t\t\tlocal %s = ngx.var.http_%s", key, key))
-				condition = append(condition, fmt.Sprintf("%s == \"%s\"", key, val))
+				cond1 = append(cond1, key)
+				cond2 = append(cond2, fmt.Sprintf("%s == \"%s\"", key, val))
 			}
-			snippet = append(snippet, fmt.Sprintf("\t\t\tif %s then", strings.Join(condition, " and ")))
-			snippet = append(snippet, fmt.Sprintf("\t\t\t\tngx.var.target = \"%s\"", name))
-			snippet = append(snippet, "\t\t\t\telse")
-			snippet = append(snippet, "\t\t\t\t\tngx.exit(404)")
+			snippet = append(snippet, fmt.Sprintf("\t\t\tif %s then", strings.Join(cond1, " and ")))
+			snippet = append(snippet, fmt.Sprintf("\t\t\t\tif %s then", strings.Join(cond2, " and ")))
+			snippet = append(snippet, fmt.Sprintf("\t\t\t\t\tngx.var.target = \"%s\"", name))
+			snippet = append(snippet, "\t\t\t\t\telse")
+			snippet = append(snippet, "\t\t\t\t\t\t\tngx.exit(404)")
+			snippet = append(snippet, "\t\t\t\tend")
+			snippet = append(snippet, "\t\t\telseif ngx.var.target == 'default' then")
+			snippet = append(snippet, "\t\t\t\tngx.exit(404)")
 			snippet = append(snippet, "\t\t\tend")
 			priority[2] = strings.Join(snippet, "\n\r")
 		case v1.CookieType:
@@ -70,7 +80,7 @@ func buildLuaHeaderRouter(input interface{}) string {
 			snippet = append(snippet, `
 			string.split = function(s, p)
                 local rt= {}
-                string.gsub(s, '[^'..p..']+', function(w) table.insert(rt, w) end )
+				string.gsub(s, '[^'..p..']+', function(w) table.insert(rt, w) end )
                 return rt
             end
 			local cookie = ngx.var.http_Cookie
@@ -91,7 +101,7 @@ func buildLuaHeaderRouter(input interface{}) string {
 			snippet = append(snippet, "\t\t\t\telse")
 			snippet = append(snippet, "\t\t\t\t\tngx.exit(404)")
 			snippet = append(snippet, "\t\t\t\tend")
-			snippet = append(snippet, "\t\t\t\telse")
+			snippet = append(snippet, "\t\t\t\telseif ngx.var.target == 'default' then")
 			snippet = append(snippet, "\t\t\t\t\tngx.exit(404)")
 			snippet = append(snippet, "\t\t\tend")
 
@@ -111,4 +121,32 @@ func buildLuaHeaderRouter(input interface{}) string {
 	out = append(out, "\t\t}")
 
 	return strings.Join(out, "\n\r")
+}
+
+// refer to http://nginx.org/en/docs/syntax.html
+// Nginx differentiates between size and offset
+// offset directives support gigabytes in addition
+var nginxSizeRegex = regexp.MustCompile("^[0-9]+[kKmM]{0,1}$")
+var nginxOffsetRegex = regexp.MustCompile("^[0-9]+[kKmMgG]{0,1}$")
+
+// isValidByteSize validates size units valid in nginx
+// http://nginx.org/en/docs/syntax.html
+func isValidByteSize(input interface{}, isOffset bool) bool {
+	s, ok := input.(string)
+	if !ok {
+		logrus.Errorf("expected an 'string' type but %T was returned", input)
+		return false
+	}
+
+	s = strings.TrimSpace(s)
+	if s == "" {
+		logrus.Info("empty byte size, hence it will not be set")
+		return false
+	}
+
+	if isOffset {
+		return nginxOffsetRegex.MatchString(s)
+	}
+
+	return nginxSizeRegex.MatchString(s)
 }

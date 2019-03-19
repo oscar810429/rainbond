@@ -44,7 +44,7 @@ type ConDB struct {
 }
 
 //CreateDBManager get db manager
-//TODO: need to try when happend error, try 4 times
+//TODO: need to try when happened error, try 4 times
 func CreateDBManager(conf option.Config) error {
 	var tryTime time.Duration
 	tryTime = 0
@@ -155,6 +155,7 @@ func BuildTask(t *TaskStruct) (*pb.EnqueueRequest, error) {
 	return &er, nil
 }
 
+//GetBegin get db transaction
 func GetBegin() *gorm.DB {
 	return db.GetManager().Begin()
 }
@@ -173,6 +174,7 @@ func dbInit() error {
 				"/v2/builder":    "server_source",
 				"/v2/tenants":    "server_source",
 				"/v2/app":        "server_source",
+				"/v2/port":       "server_source",
 				"/api/v1":        "server_source",
 				"/v2/nodes":      "node_manager",
 				"/v2/job":        "node_manager",

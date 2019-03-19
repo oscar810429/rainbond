@@ -43,7 +43,7 @@ func NewCmdInit() cli.Command {
 			cli.StringFlag{
 				Name:  "role",
 				Usage: "Node identity property",
-				Value: "master,worker",
+				Value: "manage,compute",
 			},
 			cli.StringFlag{
 				Name:  "work_dir",
@@ -67,8 +67,8 @@ func NewCmdInit() cli.Command {
 			},
 			cli.StringFlag{
 				Name:  "rainbond-version",
-				Usage: "Rainbond Install Version. default 5.0",
-				Value: "5.0",
+				Usage: "Rainbond Install Version. default 5.1",
+				Value: "5.1",
 			},
 			cli.StringFlag{
 				Name:  "rainbond-repo",
@@ -114,6 +114,11 @@ func NewCmdInit() cli.Command {
 				Name:  "network",
 				Usage: "Network type, support calico/flannel/midonet,default: calico",
 				Value: "calico",
+			},
+			cli.StringFlag{
+				Name:  "enable-check",
+				Usage: "enable check cpu/mem. default: enable/disable",
+				Value: "enable",
 			},
 			cli.StringFlag{
 				Name:  "storage-args",
@@ -238,6 +243,7 @@ func getConfig(c *cli.Context) map[string]string {
 	configs["NETWORK_TYPE"] = c.String("network")
 	configs["POD_NETWORK_CIDR"] = c.String("pod-cidr")
 	configs["STORAGE_ARGS"] = c.String("storage-args")
+	configs["ENABLE_CHECK"] = c.String("enable-check")
 	configs["PULL_ONLINE_IMAGES"] = c.String("enable-online-images")
 	return configs
 }
@@ -246,7 +252,7 @@ func initCluster(c *cli.Context) {
 	//fmt.Println("Checking install enviremant.")
 	_, err := os.Stat("/opt/rainbond/.rainbond.success")
 	if err == nil {
-		println("Rainbond is already installed, if you whant reinstall, then please delete the file: /opt/rainbond/.rainbond.success")
+		println("Rainbond is already installed, if you want reinstall, then please delete the file: /opt/rainbond/.rainbond.success")
 		return
 	}
 	// download source code from github if in online model

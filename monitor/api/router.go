@@ -24,11 +24,12 @@ import (
 	"github.com/goodrain/rainbond/util"
 
 	"github.com/go-chi/chi"
-	httputil "github.com/goodrain/rainbond/util/http"
 	"github.com/goodrain/rainbond/monitor/api/controller"
+	httputil "github.com/goodrain/rainbond/util/http"
 )
 
-func APIServer(c *controller.ControllerManager) *chi.Mux {
+//Server api server
+func Server(c *controller.RuleControllerManager) *chi.Mux {
 	r := chi.NewRouter()
 	r.Route("/monitor", func(r chi.Router) {
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -37,11 +38,11 @@ func APIServer(c *controller.ControllerManager) *chi.Mux {
 		})
 	})
 	r.Route("/v2/rules", func(r chi.Router) {
-			r.Post("/", c.AddRules)
-			r.Put("/{rules_name}", c.RegRules)
-			r.Delete("/{rules_name}", c.DelRules)
-			r.Get("/{rules_name}", c.GetRules)
-			r.Get("/all", c.GetAllRules)
+		r.Post("/", c.AddRules)
+		r.Put("/{rules_name}", c.RegRules)
+		r.Delete("/{rules_name}", c.DelRules)
+		r.Get("/{rules_name}", c.GetRules)
+		r.Get("/all", c.GetAllRules)
 	})
 	util.ProfilerSetup(r)
 	return r

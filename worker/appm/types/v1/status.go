@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/goodrain/rainbond/db/model"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -34,6 +36,9 @@ func (a *AppService) IsEmpty() bool {
 
 //IsClosed is closed
 func (a *AppService) IsClosed() bool {
+	if a.ServiceKind == model.ServiceKindThirdParty && a.endpoints != nil && len(a.endpoints) > 0 {
+		return true
+	}
 	if a.IsEmpty() && a.statefulset == nil && a.deployment == nil {
 		return true
 	}
@@ -73,6 +78,19 @@ var (
 
 //GetServiceStatus get service status
 func (a *AppService) GetServiceStatus() string {
+	if a.ServiceKind == model.ServiceKindThirdParty {
+		var readyEndpointSize int
+		endpoints := a.GetEndpoints()
+		for _, ed := range endpoints {
+			for _, s := range ed.Subsets {
+				readyEndpointSize += len(s.Addresses)
+			}
+		}
+		if readyEndpointSize > 0 {
+			return RUNNING
+		}
+		return ABNORMAL
+	}
 	if a == nil {
 		return CLOSED
 	}

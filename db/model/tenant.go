@@ -55,6 +55,19 @@ func (t *Tenants) TableName() string {
 	return "tenants"
 }
 
+// ServiceKind kind of service
+type ServiceKind string
+
+// ServiceKindThirdParty means third-party service
+var ServiceKindThirdParty ServiceKind = "third_party"
+
+// ServiceKindInternal means internal service
+var ServiceKindInternal ServiceKind = "internal"
+
+func (s ServiceKind) String() string {
+	return string(s)
+}
+
 //TenantServices app service base info
 type TenantServices struct {
 	Model
@@ -95,6 +108,8 @@ type TenantServices struct {
 	UpdateTime time.Time `gorm:"column:update_time" json:"update_time"`
 	// 服务创建类型cloud云市服务,assistant云帮服务
 	ServiceOrigin string `gorm:"column:service_origin;default:'assistant'" json:"service_origin"`
+	// kind of service. option: internal, third_party
+	Kind string `gorm:"column:kind;default:'internal'" json:"kind"`
 }
 
 //Image 镜像
@@ -194,6 +209,8 @@ type TenantServicesDelete struct {
 	UpdateTime time.Time `gorm:"column:update_time" json:"update_time"`
 	// 服务创建类型cloud云市服务,assistant云帮服务
 	ServiceOrigin string `gorm:"column:service_origin;default:'assistant'" json:"service_origin"`
+	// kind of service. option: internal, third_party
+	Kind string `gorm:"column:kind;default:'internal'" json:"kind"`
 }
 
 //TableName 表名
@@ -208,7 +225,7 @@ type TenantServicesPort struct {
 	ServiceID      string `gorm:"column:service_id;size:32" validate:"service_id|between:30,33" json:"service_id"`
 	ContainerPort  int    `gorm:"column:container_port" validate:"container_port|required|numeric_between:1,65535" json:"container_port"`
 	MappingPort    int    `gorm:"column:mapping_port" validate:"mapping_port|required|numeric_between:1,65535" json:"mapping_port"`
-	Protocol       string `gorm:"column:protocol" validate:"protocol|required|in:http,https,stream,grpc" json:"protocol"`
+	Protocol       string `gorm:"column:protocol" validate:"protocol|required|in:http,https,tcp,grpc,udp,mysql" json:"protocol"`
 	PortAlias      string `gorm:"column:port_alias" validate:"port_alias|required|alpha_dash" json:"port_alias"`
 	IsInnerService bool   `gorm:"column:is_inner_service" validate:"is_inner_service|bool" json:"is_inner_service"`
 	IsOuterService bool   `gorm:"column:is_outer_service" validate:"is_outer_service|bool" json:"is_outer_service"`
@@ -335,11 +352,12 @@ func (t *TenantServiceVolume) TableName() string {
 // TenantServiceConfigFile represents a data in configMap which is one of the types of volumes
 type TenantServiceConfigFile struct {
 	Model
-	UUID        string `gorm:"column:uuid;size:32" json:"uuid"`
+	ServiceID   string `gorm:"column:service_id;size:32" json:"service_id"`
 	VolumeName  string `gorm:"column:volume_name;size:32" json:"volume_name"`
 	FileContent string `gorm:"column:file_content;size:65535" json:"filename"`
 }
 
+// TableName returns table name of TenantServiceConfigFile.
 func (t *TenantServiceConfigFile) TableName() string {
 	return "tenant_service_config_file"
 }
@@ -395,8 +413,25 @@ type TenantServiceProbe struct {
 	//标志为失败的检测次数
 	FailureThreshold int `gorm:"column:failure_threshold;size:2;default:3" json:"failure_threshold" validate:"failure_threshold"`
 	//标志为成功的检测次数
-	SuccessThreshold int `gorm:"column:success_threshold;size:2;default:1" json:"success_threshold" validate:"success_threshold"`
+	SuccessThreshold int    `gorm:"column:success_threshold;size:2;default:1" json:"success_threshold" validate:"success_threshold"`
+	FailureAction    string `gorm:"column:failure_action;" json:"failure_action" validate:"failure_action"`
 }
+
+// FailureActionType  type of failure action.
+type FailureActionType string
+
+func (fat FailureActionType) String() string {
+	return string(fat)
+}
+
+const (
+	// IgnoreFailureAction do nothing when the probe result is a failure
+	IgnoreFailureAction FailureActionType = "ignore"
+	// OfflineFailureAction offline the probe object when the probe result is a failure
+	OfflineFailureAction FailureActionType = "readiness"
+	// RestartFailureAction restart the probe object when the probe result is a failure
+	RestartFailureAction FailureActionType = "liveness"
+)
 
 //TableName 表名
 func (t *TenantServiceProbe) TableName() string {

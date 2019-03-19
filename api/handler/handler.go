@@ -57,9 +57,8 @@ func InitHandle(conf option.Config, statusCli *client.AppRuntimeSyncClient) erro
 	defaultServieHandler = CreateManager(conf, mqClient, etcdCli, statusCli)
 	defaultPluginHandler = CreatePluginManager(mqClient)
 	defaultAppHandler = CreateAppManager(mqClient)
-	defaultTenantHandler = CreateTenManager(mqClient, statusCli)
+	defaultTenantHandler = CreateTenManager(mqClient, statusCli, &conf)
 	defaultNetRulesHandler = CreateNetRulesManager(etcdCli)
-	defaultSourcesHandler = CreateSourcesManager(etcdCli)
 	defaultCloudHandler = CreateCloudManager(conf)
 	defaultAPPBackupHandler = group.CreateBackupHandle(mqClient, statusCli, etcdCli)
 	//需要使用etcd v2 API
@@ -70,8 +69,11 @@ func InitHandle(conf option.Config, statusCli *client.AppRuntimeSyncClient) erro
 		logrus.Errorf("create token identification mannager error, %v", err)
 		return err
 	}
-	// gateway
 	defaultGatewayHandler = CreateGatewayManager(dbmanager, mqClient)
+	def3rdPartySvcHandler = Create3rdPartySvcHandler(dbmanager, statusCli)
+	operationHandler = CreateOperationHandler(mqClient)
+	batchOperationHandler = CreateBatchOperationHandler(mqClient, operationHandler)
+
 	return nil
 }
 
@@ -115,13 +117,6 @@ func GetRulesManager() NetRulesHandler {
 	return defaultNetRulesHandler
 }
 
-var defaultSourcesHandler SourcesHandler
-
-//GetSourcesManager get manager
-func GetSourcesManager() SourcesHandler {
-	return defaultSourcesHandler
-}
-
 var defaultCloudHandler CloudHandler
 
 //GetCloudManager get manager
@@ -155,4 +150,25 @@ var defaultGatewayHandler GatewayHandler
 // GetGatewayHandler returns a default GatewayHandler
 func GetGatewayHandler() GatewayHandler {
 	return defaultGatewayHandler
+}
+
+var def3rdPartySvcHandler *ThirdPartyServiceHanlder
+
+// Get3rdPartySvcHandler returns the defalut ThirdParthServiceHanlder
+func Get3rdPartySvcHandler() *ThirdPartyServiceHanlder {
+	return def3rdPartySvcHandler
+}
+
+var batchOperationHandler *BatchOperationHandler
+
+//GetBatchOperationHandler get handler
+func GetBatchOperationHandler() *BatchOperationHandler {
+	return batchOperationHandler
+}
+
+var operationHandler *OperationHandler
+
+//GetOperationHandler get handler
+func GetOperationHandler() *OperationHandler {
+	return operationHandler
 }

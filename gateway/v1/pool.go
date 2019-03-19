@@ -34,9 +34,10 @@ type Pool struct {
 	UpstreamHashBy    string            `json:"upstream_hash_by"`
 	LeastConn         bool              `json:"least_conn"`
 	Monitors          []Monitor         `json:"monitors"`
-	Nodes             []*Node
+	Nodes             []*Node `json:"nodes"`
 }
 
+//Equals -
 func (p *Pool) Equals(c *Pool) bool {
 	if p == c {
 		return true

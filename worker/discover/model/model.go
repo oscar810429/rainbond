@@ -21,8 +21,8 @@ package model
 import (
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/goodrain/rainbond/mq/api/grpc/pb"
-
 	"github.com/pquerna/ffjson/ffjson"
 	"github.com/tidwall/gjson"
 )
@@ -62,6 +62,8 @@ func TransTask(task *pb.TaskMessage) (*Task, error) {
 		User:       task.User,
 	}, nil
 }
+
+//NewTaskBody new task body
 func NewTaskBody(taskType string, body []byte) TaskBody {
 	switch taskType {
 	case "start":
@@ -128,7 +130,15 @@ func NewTaskBody(taskType string, body []byte) TaskBody {
 		}
 		return b
 	case "apply_rule":
-		b := &ApplyRuleTaskBody{}
+		b := ApplyRuleTaskBody{}
+		err := ffjson.Unmarshal(body, &b)
+		if err != nil {
+			logrus.Debugf("error unmarshal data: %v", err)
+			return nil
+		}
+		return &b
+	case "apply_plugin_config":
+		b := &ApplyPluginConfigTaskBody{}
 		err := ffjson.Unmarshal(body, &b)
 		if err != nil {
 			return nil
@@ -160,6 +170,8 @@ func CreateTaskBody(taskType string) TaskBody {
 		return HorizontalScalingTaskBody{}
 	case "vertical_scaling":
 		return VerticalScalingTaskBody{}
+	case "apply_plugin_config":
+		return ApplyPluginConfigTaskBody{}
 	default:
 		return DefaultTaskBody{}
 	}
@@ -170,18 +182,20 @@ type TaskBody interface{}
 
 //StartTaskBody 启动操作任务主体
 type StartTaskBody struct {
-	TenantID      string `json:"tenant_id"`
-	ServiceID     string `json:"service_id"`
-	DeployVersion string `json:"deploy_version"`
-	EventID       string `json:"event_id"`
+	TenantID      string            `json:"tenant_id"`
+	ServiceID     string            `json:"service_id"`
+	DeployVersion string            `json:"deploy_version"`
+	EventID       string            `json:"event_id"`
+	Configs       map[string]string `json:"configs"`
 }
 
 //StopTaskBody 停止操作任务主体
 type StopTaskBody struct {
-	TenantID      string `json:"tenant_id"`
-	ServiceID     string `json:"service_id"`
-	DeployVersion string `json:"deploy_version"`
-	EventID       string `json:"event_id"`
+	TenantID      string            `json:"tenant_id"`
+	ServiceID     string            `json:"service_id"`
+	DeployVersion string            `json:"deploy_version"`
+	EventID       string            `json:"event_id"`
+	Configs       map[string]string `json:"configs"`
 }
 
 //HorizontalScalingTaskBody 水平伸缩操作任务主体
@@ -210,7 +224,8 @@ type RestartTaskBody struct {
 	//重启策略，此策略不保证生效
 	//例如应用如果为有状态服务，此策略如配置为先启动后关闭，此策略不生效
 	//无状态服务默认使用先启动后关闭，保证服务不受影响
-	Strategy []string `json:"strategy"`
+	Strategy []string          `json:"strategy"`
+	Configs  map[string]string `json:"configs"`
 }
 
 //StrategyIsValid 验证策略是否有效
@@ -227,11 +242,12 @@ func StrategyIsValid(strategy []string, serviceDeployType string) bool {
 
 //RollingUpgradeTaskBody 升级操作任务主体
 type RollingUpgradeTaskBody struct {
-	TenantID         string   `json:"tenant_id"`
-	ServiceID        string   `json:"service_id"`
-	NewDeployVersion string   `json:"deploy_version"`
-	EventID          string   `json:"event_id"`
-	Strategy         []string `json:"strategy"`
+	TenantID         string            `json:"tenant_id"`
+	ServiceID        string            `json:"service_id"`
+	NewDeployVersion string            `json:"deploy_version"`
+	EventID          string            `json:"event_id"`
+	Strategy         []string          `json:"strategy"`
+	Configs          map[string]string `json:"configs"`
 }
 
 //RollBackTaskBody 回滚操作任务主体
@@ -264,7 +280,19 @@ type ApplyRuleTaskBody struct {
 	ServiceID     string `json:"service_id"`
 	DeployVersion string `json:"deploy_version"`
 	EventID       string `json:"event_id"`
+	ServiceKind   string `json:"service_kind"`
 	Action        string `json:"action"`
+	Port          int    `json:"port"`
+	IsInner       bool   `json:"is_inner"`
+}
+
+// ApplyPluginConfigTaskBody apply plugin dynamic discover config
+type ApplyPluginConfigTaskBody struct {
+	ServiceID string `json:"service_id"`
+	PluginID  string `json:"plugin_id"`
+	EventID   string `json:"event_id"`
+	//Action put delete
+	Action string `json:"action"`
 }
 
 //Dependence 依赖关系

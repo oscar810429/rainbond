@@ -1,6 +1,10 @@
 package model
 
-import "github.com/goodrain/rainbond/gateway/v1"
+import (
+	"github.com/goodrain/rainbond/gateway/annotations/proxy"
+	"github.com/goodrain/rainbond/gateway/annotations/rewrite"
+	"github.com/goodrain/rainbond/gateway/v1"
+)
 
 // Server sets configuration for a virtual server...
 type Server struct {
@@ -13,20 +17,16 @@ type Server struct {
 	ServerTokens            bool   // Enables or disables emitting nginx version on error pages and in the “Server” response header field.
 	ClientMaxBodySize       Size   // Sets the maximum allowed size of the client request body
 	ChunkedTransferEncoding bool   // Allows disabling chunked transfer encoding in HTTP/1.1
-
-	ProxyConnectTimeout Time
-	ProxyTimeout        Time
-	ProxyPass           string
-
-	SSLCertificate    string // Specifies a file with the certificate in the PEM format.
-	SSLCertificateKey string // Specifies a file with the secret key in the PEM format.
-
-	ForceSSLRedirect bool
-
-	Return   Return
-	Rewrites []Rewrite
-
-	Locations []*Location
+	ProxyConnectTimeout     Time
+	ProxyTimeout            Time
+	ProxyPass               string
+	SSLCertificate          string // Specifies a file with the certificate in the PEM format.
+	SSLCertificateKey       string // Specifies a file with the secret key in the PEM format.
+	ForceSSLRedirect        bool
+	Return                  Return
+	Rewrites                []Rewrite
+	Locations               []*Location
+	OptionValue             map[string]string
 }
 
 // FastCGIParam sets a parameter that should be passed to the FastCGI server.
@@ -51,19 +51,26 @@ type Return struct {
 
 // Location sets configuration depending on a request URI.
 type Location struct {
-	Path     string
-	Rewrites []Rewrite
-	Return   Return
+	Path    string
+	Rewrite rewrite.Config
+	Return  Return
 	// Sets the protocol and address of a proxied server and an optional URI to which a location should be mapped
-	ProxyPass           string
-	ProxySetHeaders     []*ProxySetHeader
-	ProxyRedirect       string // Sets the text that should be changed in the “Location” and “Refresh” header fields of a proxied server response
-	ProxyConnectTimeout Time   // Defines a timeout for establishing a connection with a proxied server
-	ProxyReadTimeout    Time   // Defines a timeout for reading a response from the proxied server.
-	ProxySendTimeout    Time   // Sets a timeout for transmitting a request to the proxied server.
+	ProxyPass string
+	// Sets the text that should be changed in the “Location” and “Refresh” header fields of a proxied server response
+	// TODO: mv ProxyRedirect to Proxy
+	ProxyRedirect string
 
+	EnableMetrics    bool //Enables or disables monitor
+	DisableAccessLog bool //disable or enables access log
 	DisableProxyPass bool
-	NameCondition    map[string]*v1.Condition
+	//PathRewrite if true, path will not passed to the upstream
+	PathRewrite   bool
+	NameCondition map[string]*v1.Condition
+
+	// Proxy contains information about timeouts and buffer sizes
+	// to be used in connections against endpoints
+	// +optional
+	Proxy proxy.Config `json:"proxy,omitempty"`
 }
 
 // ProxySetHeader allows redefining or appending fields to the request header passed to the proxied server.

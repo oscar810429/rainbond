@@ -1,0 +1,167 @@
+{{ if .User }} user {{.User}};{{ end }}
+worker_processes  {{.WorkerProcesses}};
+error_log  {{.ErrorLog}};
+worker_rlimit_nofile {{.WorkerRlimitNofile}};
+daemon off;
+
+events {
+    {{ if .Events.EnableEpoll }}use epoll;{{ end }}
+    {{ if .Events.EnableMultiAccept }}multi_accept on;{{ end }}
+    worker_connections  {{.Events.WorkerConnections}};
+}
+
+{{ $h := .HTTP }}
+http {
+    lua_package_cpath "/run/nginx/lua/vendor/so/?.so;/usr/local/openresty/luajit/lib/?.so;;";
+    lua_package_path "/run/nginx/lua/?.lua;;";
+    lua_shared_dict configuration_data {{$h.UpstreamsDict.Num}}{{$h.UpstreamsDict.Unit}};
+
+    underscores_in_headers on;
+    proxy_headers_hash_max_size 51200;
+    proxy_headers_hash_bucket_size 6400;
+
+    init_by_lua_block {
+        require("resty.core")
+        collectgarbage("collect")
+
+        -- init modules
+        local ok, res
+
+        ok, res = pcall(require, "config")
+        if not ok then
+          error("require failed: " .. tostring(res))
+        else
+          config = res
+        end
+
+        ok, res = pcall(require, "balancer")
+        if not ok then
+          error("require failed: " .. tostring(res))
+        else
+          balancer = res
+        end
+
+        ok, res = pcall(require, "monitor")
+        if not ok then
+          error("require failed: " .. tostring(res))
+        else
+          monitor = res
+        end
+    }
+    init_worker_by_lua_block {
+        balancer.init_worker()
+        monitor.init_worker()
+    }
+    include mime.types;
+    default_type  {{$h.DefaultType}};
+
+    {{ if $h.SendFile }}
+    sendfile        on;
+    {{ end }}
+
+    keepalive_timeout  {{$h.KeepaliveTimeout.Num}}{{$h.KeepaliveTimeout.Unit}};
+
+    {{ if gt $h.ClientMaxBodySize.Num 0 }}
+    client_max_body_size {{$h.ClientMaxBodySize.Num}}{{$h.ClientMaxBodySize.Unit}};
+    {{ end }}
+    {{ if gt $h.ClientBodyBufferSize.Num 0 }}
+    client_body_buffer_size   {{$h.ClientBodyBufferSize.Num}}{{$h.ClientBodyBufferSize.Unit}};
+    {{ end }}
+    {{ if gt $h.ProxyConnectTimeout.Num 0 }}
+    proxy_connect_timeout   {{$h.ProxyConnectTimeout.Num}}{{$h.ProxyConnectTimeout.Unit}};
+    {{ end }}
+    {{ if gt $h.ProxySendTimeout.Num 0 }}
+    proxy_send_timeout      {{$h.ProxySendTimeout.Num}}{{$h.ProxySendTimeout.Unit}};
+    {{ end }}
+    {{ if gt $h.ProxySendTimeout.Num 0 }}
+    proxy_read_timeout      {{$h.ProxyReadTimeout.Num}}{{$h.ProxyReadTimeout.Unit}};
+    {{ end }}
+    {{ if gt $h.ProxyBufferSize.Num 0}}
+    proxy_buffer_size       {{$h.ProxyBufferSize.Num}}{{$h.ProxyBufferSize.Unit}};
+    {{ end }}
+    {{ if gt $h.ProxyBuffers.Num 0}}
+    proxy_buffers           4 {{$h.ProxyBuffers.Num}}{{$h.ProxyBuffers.Unit}};
+    {{ end }}
+    {{ if gt $h.ProxyBusyBuffersSize.Num 0 }}
+    proxy_busy_buffers_size   {{$h.ProxyBusyBuffersSize.Num}}{{$h.ProxyBusyBuffersSize.Unit}};
+    {{ end }}
+
+    gzip              on;
+    gzip_min_length   1k;
+    gzip_buffers      4 16k;
+    gzip_http_version 1.0;
+    gzip_comp_level   6;
+    gzip_types        text/plain text/css text/javascript application/json application/javascript application/x-javascript application/xml;
+    gzip_vary         on;
+
+    server_names_hash_bucket_size 512;
+
+    server {
+        listen 80 default_server;
+        server_name _;
+        return 404;
+    }
+    server {
+        listen 443 ssl default_server;
+        server_name _;
+        ssl_certificate default-server.crt;
+        ssl_certificate_key default-server.key;
+        return 404;
+    }
+
+    upstream upstream_balancer {
+        server 0.0.0.1; # placeholder
+
+        balancer_by_lua_block {
+          balancer.balance()
+        }
+    }
+
+    server {
+        listen       127.0.0.1:{{$h.StatusPort}};
+
+        location /healthz {
+            access_log off;
+            return 200 "ok";
+        }
+
+        location /is-dynamic-lb-initialized {
+            access_log off;
+
+            content_by_lua_block {
+                local configuration = require("config")
+                local backend_data = configuration.get_backends_data()
+                if not backend_data then
+                    ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+                    return
+                end
+
+                ngx.say("OK")
+                ngx.exit(ngx.HTTP_OK)
+            }
+        }
+
+        location /config {
+            access_log off;
+
+            allow 127.0.0.1;
+            deny all;
+
+            # this should be equals to configuration_data dict
+            client_max_body_size                    {{$h.UpstreamsDict.Num}}{{$h.UpstreamsDict.Unit}};
+            proxy_buffering                         off;
+
+            content_by_lua_block {
+              config.call()
+            }
+        }
+    }
+
+    include http/*.conf;
+    include /run/nginx/rainbond/http/*.conf;
+}
+
+stream {
+    include stream/*.conf;
+    include /run/nginx/rainbond/stream/*.conf;
+}

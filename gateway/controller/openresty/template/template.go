@@ -20,8 +20,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	text_template "text/template"
+
+	"github.com/goodrain/rainbond/cmd/gateway/option"
 
 	"github.com/Sirupsen/logrus"
 
@@ -77,8 +80,14 @@ func NewNginxTemplate(data *model.Nginx, defaultNginxConf string) error {
 	return nil
 }
 
+//ServerContext ServerContext
+type ServerContext struct {
+	Servers []*model.Server
+	Set     option.Config
+}
+
 // NewServerTemplate creates a configuration file for the nginx server module
-func NewServerTemplate(data []*model.Server, filename string) error {
+func NewServerTemplate(data *ServerContext, filename string) error {
 	if e := Persist(tmplPath+"/servers.tmpl", data, CustomConfigPath, filename); e != nil {
 		return e
 	}
@@ -86,7 +95,7 @@ func NewServerTemplate(data []*model.Server, filename string) error {
 }
 
 // NewServerTemplateWithCfgPath creates a configuration file for the nginx server module
-func NewServerTemplateWithCfgPath(data []*model.Server, cfgPath string, filename string) error {
+func NewServerTemplateWithCfgPath(data *ServerContext, cfgPath string, filename string) error {
 	if e := Persist(tmplPath+"/servers.tmpl", data, cfgPath, filename); e != nil {
 		return e
 	}
@@ -159,15 +168,14 @@ func (t *Template) Write(conf interface{}) ([]byte, error) {
 
 	// squeezes multiple adjacent empty lines to be single
 	// spaced this is to avoid the use of regular expressions
-	//	cmd := exec.Command("/ingress-controller/clean-nginx-conf.sh")
-	//	cmd.Stdin = tmplBuf
-	//	cmd.Stdout = outCmdBuf
-	//	if err := cmd.Run(); err != nil {
-	//		logrus.Warningf("unexpected error cleaning template: %v", err)
-	//		return tmplBuf.Bytes(), nil
-	//	}
-	//	return outCmdBuf.Bytes(), nil
-	return tmplBuf.Bytes(), nil
+	cmd := exec.Command("/run/ingress-controller/clean-nginx-conf.sh")
+	cmd.Stdin = tmplBuf
+	cmd.Stdout = outCmdBuf
+	if err := cmd.Run(); err != nil {
+		logrus.Warningf("unexpected error cleaning template: %v", err)
+		return tmplBuf.Bytes(), nil
+	}
+	return outCmdBuf.Bytes(), nil
 }
 
 func isExists(f string) bool {

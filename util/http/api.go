@@ -20,17 +20,15 @@ package http
 
 import (
 	"errors"
-	"github.com/Sirupsen/logrus"
 	"io"
 	"net/http"
 	"net/url"
 	"reflect"
 
-	"golang.org/x/net/context"
-
+	"github.com/Sirupsen/logrus"
 	"github.com/go-chi/render"
-
 	govalidator "github.com/thedevsaddam/govalidator"
+	"golang.org/x/net/context"
 )
 
 //ValidatorStructRequest 验证请求数据
@@ -158,6 +156,12 @@ func ReturnError(r *http.Request, w http.ResponseWriter, code int, msg string) {
 
 //Return  自定义
 func Return(r *http.Request, w http.ResponseWriter, code int, reb ResponseBody) {
+	r = r.WithContext(context.WithValue(r.Context(), render.StatusCtxKey, code))
+	render.DefaultResponder(w, r, reb)
+}
+
+//ReturnNoFomart  http return no format result
+func ReturnNoFomart(r *http.Request, w http.ResponseWriter, code int, reb interface{}) {
 	r = r.WithContext(context.WithValue(r.Context(), render.StatusCtxKey, code))
 	render.DefaultResponder(w, r, reb)
 }

@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/goodrain/rainbond/builder/parser/code"
+	"github.com/goodrain/rainbond/builder/parser/discovery"
 )
 
 //Port 端口
@@ -140,10 +141,16 @@ type ServiceInfo struct {
 	Branchs           []string  `json:"branchs,omitempty"`
 	Memory            int       `json:"memory"`
 	Lang              code.Lang `json:"language"`
-	Runtime           bool      `json:"runtime"`
-	Dependencies      bool      `json:"dependencies"`
-	Procfile          bool      `json:"procfile"`
 	ImageAlias        string    `json:"image_alias"`
+	//For third party services
+	Endpoints []*discovery.Endpoint `json:"endpoints"`
+
+	//deprecated
+	Runtime bool `json:"runtime"`
+	//deprecated
+	Dependencies bool `json:"dependencies"`
+	//deprecated
+	Procfile bool `json:"procfile"`
 }
 
 //GetServiceInfo GetServiceInfo

@@ -19,7 +19,9 @@
 package db
 
 import (
+	"context"
 	"fmt"
+	"github.com/testcontainers/testcontainers-go"
 	"testing"
 	"time"
 
@@ -27,6 +29,58 @@ import (
 	"github.com/goodrain/rainbond/db/model"
 	"github.com/goodrain/rainbond/util"
 )
+
+func CreateTestManager() (Manager, error) {
+	dbname := "region"
+	rootpw := "rainbond"
+
+	ctx := context.Background()
+	req := testcontainers.ContainerRequest{
+		Image:        "mariadb",
+		ExposedPorts: []string{"3306/tcp"},
+		Env: map[string]string{
+			"MYSQL_ROOT_PASSWORD": rootpw,
+			"MYSQL_DATABASE":      dbname,
+		},
+		Cmd: "--character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci",
+	}
+	mariadb, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer mariadb.Terminate(ctx)
+
+	host, err := mariadb.Host(ctx)
+	if err != nil {
+		return nil, err
+	}
+	port, err := mariadb.MappedPort(ctx, "3306")
+	if err != nil {
+		return nil, err
+	}
+
+	connInfo := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", "root",
+		rootpw, host, port.Int(), dbname)
+	tryTimes := 3
+	for {
+		if err := CreateManager(dbconfig.Config{
+			DBType:              "mysql",
+			MysqlConnectionInfo: connInfo,
+		}); err != nil {
+			if tryTimes == 0 {
+				return nil, fmt.Errorf("Connect info: %s; error creating db manager: %v", connInfo, err)
+			}
+			tryTimes = tryTimes - 1
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		break
+	}
+	return GetManager(), nil
+}
 
 func TestTenantDao(t *testing.T) {
 	if err := CreateManager(dbconfig.Config{
@@ -222,41 +276,11 @@ func TestCockroachDBDeleteService(t *testing.T) {
 //	}); err != nil {
 //		t.Fatal(err)
 //	}
-	//err := GetManager().K8sDeployReplicationDao().DeleteK8sDeployReplication("asdasdadsasdasdasd")
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
+//err := GetManager().K8sDeployReplicationDao().DeleteK8sDeployReplication("asdasdadsasdasdasd")
+//if err != nil {
+//	t.Fatal(err)
 //}
-
-func TestGetHttpRuleByServiceIDAndContainerPort(t *testing.T) {
-	if err := CreateManager(dbconfig.Config{
-		MysqlConnectionInfo: "admin:admin@tcp(127.0.0.1:3306)/region",
-		DBType:              "mysql",
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := GetManager().HttpRuleDao().GetHttpRuleByServiceIDAndContainerPort(
-		"43eaae441859eda35b02075d37d83581", 10001)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestGetTcpRuleByServiceIDAndContainerPort(t *testing.T) {
-	if err := CreateManager(dbconfig.Config{
-		MysqlConnectionInfo: "admin:admin@tcp(127.0.0.1:3306)/region",
-		DBType:              "mysql",
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := GetManager().TcpRuleDao().GetTcpRuleByServiceIDAndContainerPort(
-		"43eaae441859eda35b02075d37d83581", 10001)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
+//}
 
 func TestGetCertificateByID(t *testing.T) {
 	if err := CreateManager(dbconfig.Config{

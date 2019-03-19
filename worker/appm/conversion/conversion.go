@@ -20,45 +20,59 @@ package conversion
 
 import (
 	"github.com/goodrain/rainbond/db"
-	v1 "github.com/goodrain/rainbond/worker/appm/types/v1"
+	"github.com/goodrain/rainbond/db/model"
+	"github.com/goodrain/rainbond/util"
+	"github.com/goodrain/rainbond/worker/appm/types/v1"
 )
 
 func init() {
 	//first conv service source
-	RegistConversion(ServiceSource)
+	RegistConversion("ServiceSource", ServiceSource)
 	//step2 conv service base
-	RegistConversion(TenantServiceBase)
+	RegistConversion("TenantServiceBase", TenantServiceBase)
 	//step3 conv service pod base info
-	RegistConversion(TenantServiceVersion)
+	RegistConversion("TenantServiceVersion", TenantServiceVersion)
 	//step4 conv service plugin
-	RegistConversion(TenantServicePlugin)
+	RegistConversion("TenantServicePlugin", TenantServicePlugin)
 	//step5 conv service inner and outer regist
-	RegistConversion(TenantServiceRegist)
+	RegistConversion("TenantServiceRegist", TenantServiceRegist)
 }
 
 //Conversion conversion function
 //Any application attribute implementation is similarly injected
 type Conversion func(*v1.AppService, db.Manager) error
 
+//CacheConversion conversion cache struct
+type CacheConversion struct {
+	Name       string
+	Conversion Conversion
+}
+
 //conversionList conversion function list
-var conversionList []Conversion
+var conversionList []CacheConversion
 
 //RegistConversion regist conversion function list
-func RegistConversion(fun Conversion) {
-	conversionList = append(conversionList, fun)
+func RegistConversion(name string, fun Conversion) {
+	conversionList = append(conversionList, CacheConversion{Name: name, Conversion: fun})
 }
 
 //InitAppService init a app service
-func InitAppService(dbmanager db.Manager, serviceID string) (*v1.AppService, error) {
+func InitAppService(dbmanager db.Manager, serviceID string, configs map[string]string, enableConversionList ...string) (*v1.AppService, error) {
+	if configs == nil {
+		configs = make(map[string]string)
+	}
 	appService := &v1.AppService{
 		AppServiceBase: v1.AppServiceBase{
-			ServiceID: serviceID,
+			ServiceID:    serviceID,
+			ExtensionSet: configs,
 		},
 		UpgradePatch: make(map[string][]byte, 2),
 	}
 	for _, c := range conversionList {
-		if err := c(appService, dbmanager); err != nil {
-			return nil, err
+		if len(enableConversionList) == 0 || util.StringArrayContains(enableConversionList, c.Name) {
+			if err := c.Conversion(appService, dbmanager); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return appService, nil
@@ -66,17 +80,27 @@ func InitAppService(dbmanager db.Manager, serviceID string) (*v1.AppService, err
 
 //InitCacheAppService init cache app service.
 //if store manager receive a kube model belong with service and not find in store,will create
-func InitCacheAppService(dbmanager db.Manager, serviceID, version, createrID string) (*v1.AppService, error) {
+func InitCacheAppService(dbm db.Manager, serviceID, creatorID string) (*v1.AppService, error) {
 	appService := &v1.AppService{
 		AppServiceBase: v1.AppServiceBase{
 			ServiceID:    serviceID,
-			CreaterID:    createrID,
+			CreaterID:    creatorID,
 			ExtensionSet: make(map[string]string),
 		},
 		UpgradePatch: make(map[string][]byte, 2),
 	}
-	if err := TenantServiceBase(appService, dbmanager); err != nil {
+	if err := TenantServiceBase(appService, dbm); err != nil {
 		return nil, err
 	}
+	svc, err := dbm.TenantServiceDao().GetServiceByID(serviceID)
+	if err != nil {
+		return nil, err
+	}
+	if svc.Kind == model.ServiceKindThirdParty.String() {
+		if err := TenantServiceRegist(appService, dbm); err != nil {
+			return nil, err
+		}
+	}
+
 	return appService, nil
 }

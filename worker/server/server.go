@@ -21,19 +21,22 @@ package server
 import (
 	"context"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/goodrain/rainbond/util"
-
-	discover "github.com/goodrain/rainbond/discover.v2"
-
 	"github.com/Sirupsen/logrus"
+	"github.com/eapache/channels"
 	"github.com/goodrain/rainbond/cmd/worker/option"
+	"github.com/goodrain/rainbond/discover.v2"
+	"github.com/goodrain/rainbond/util"
 	"github.com/goodrain/rainbond/worker/appm/store"
+	"github.com/goodrain/rainbond/worker/appm/thirdparty/discovery"
+	"github.com/goodrain/rainbond/worker/appm/types/v1"
 	"github.com/goodrain/rainbond/worker/server/pb"
-	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -46,18 +49,23 @@ type RuntimeServer struct {
 	server    *grpc.Server
 	hostIP    string
 	keepalive *discover.KeepAlive
+
+	updateCh *channels.RingChannel
 }
 
 //CreaterRuntimeServer create a runtime grpc server
-func CreaterRuntimeServer(conf option.Config, store store.Storer) *RuntimeServer {
+func CreaterRuntimeServer(conf option.Config,
+	store store.Storer,
+	updateCh *channels.RingChannel) *RuntimeServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	rs := &RuntimeServer{
-		conf:   conf,
-		ctx:    ctx,
-		cancel: cancel,
-		server: grpc.NewServer(),
-		hostIP: conf.HostIP,
-		store:  store,
+		conf:     conf,
+		ctx:      ctx,
+		cancel:   cancel,
+		server:   grpc.NewServer(),
+		hostIP:   conf.HostIP,
+		store:    store,
+		updateCh: updateCh,
 	}
 	pb.RegisterAppRuntimeSyncServer(rs.server, rs)
 	// Register reflection service on gRPC server.
@@ -84,15 +92,30 @@ func (r *RuntimeServer) Start(errchan chan error) {
 
 //GetAppStatus get app service status
 func (r *RuntimeServer) GetAppStatus(ctx context.Context, re *pb.ServicesRequest) (*pb.StatusMessage, error) {
-	status := r.store.GetAppServicesStatus(strings.Split(re.ServiceIds, ","))
+	var servicdIDs []string
+	if re.ServiceIds != "" {
+		servicdIDs = strings.Split(re.ServiceIds, ",")
+	}
+	status := r.store.GetAppServicesStatus(servicdIDs)
 	return &pb.StatusMessage{
 		Status: status,
 	}, nil
 }
 
-//GetAppDisk get app service volume disk size
-func (r *RuntimeServer) GetAppDisk(ctx context.Context, re *pb.ServicesRequest) (*pb.DiskMessage, error) {
-	return nil, nil
+//GetTenantResource get tenant resource
+//if TenantId is "" will return the sum of the all tenant
+func (r *RuntimeServer) GetTenantResource(ctx context.Context, re *pb.TenantRequest) (*pb.TenantResource, error) {
+	var tr pb.TenantResource
+	res := r.store.GetTenantResource(re.TenantId)
+	if res == nil {
+		return &tr, nil
+	}
+	tr.RunningAppNum = int64(len(r.store.GetTenantRunningApp(re.TenantId)))
+	tr.CpuLimit = res.CPULimit
+	tr.CpuRequest = res.CPURequest
+	tr.MemoryLimit = res.MemoryLimit / 1024 / 1024
+	tr.MemoryRequest = res.MemoryRequest / 1024 / 1024
+	return &tr, nil
 }
 
 //GetAppPods get app pod list
@@ -119,7 +142,7 @@ func (r *RuntimeServer) GetAppPods(ctx context.Context, re *pb.ServiceRequest) (
 		for _, container := range pod.Spec.Containers {
 			containers[container.Name] = &pb.Container{
 				ContainerName: container.Name,
-				MemoryLimit:   int32(container.Resources.Limits.Memory().Value()),
+				MemoryLimit:   container.Resources.Limits.Memory().Value(),
 			}
 		}
 		Pods = append(Pods, &pb.ServiceAppPod{
@@ -210,4 +233,103 @@ func (r *RuntimeServer) registServer() error {
 		r.keepalive = keepalive
 	}
 	return r.keepalive.Start()
+}
+
+// ListThirdPartyEndpoints returns a collection of third-part endpoints.
+func (r *RuntimeServer) ListThirdPartyEndpoints(ctx context.Context, re *pb.ServiceRequest) (*pb.ThirdPartyEndpoints, error) {
+	as := r.store.GetAppService(re.ServiceId)
+	if as == nil {
+		return new(pb.ThirdPartyEndpoints), nil
+	}
+	var pbeps []*pb.ThirdPartyEndpoint
+	exists := make(map[string]bool)
+	logrus.Debugf("Status from endpoints: %+v", as.GetEndpoints())
+	for _, ep := range as.GetEndpoints() {
+		if exists[ep.GetLabels()["uuid"]] {
+			continue
+		}
+		exists[ep.GetLabels()["uuid"]] = true
+		pbep := &pb.ThirdPartyEndpoint{
+			Uuid: ep.GetLabels()["uuid"],
+			Sid:  ep.GetLabels()["service_id"],
+			Ip:   ep.GetLabels()["ip"],
+			Port: func(item *corev1.Endpoints) int32 {
+				realport, _ := strconv.ParseBool(item.GetLabels()["realport"])
+				if realport {
+					portstr := item.GetLabels()["port"]
+					port, _ := strconv.Atoi(portstr)
+					return int32(port)
+				}
+				return 0
+			}(ep),
+			Status: func(item *corev1.Endpoints) string {
+				if item.Subsets == nil || len(item.Subsets) == 0 {
+					return "unknown"
+				}
+				if item.Subsets[0].Addresses == nil || len(item.Subsets[0].Addresses) == 0 {
+					return "unhealthy"
+				}
+				return "healthy"
+			}(ep),
+		}
+		pbeps = append(pbeps, pbep)
+	}
+	return &pb.ThirdPartyEndpoints{
+		Obj: pbeps,
+	}, nil
+}
+
+// AddThirdPartyEndpoint creates a create event.
+func (r *RuntimeServer) AddThirdPartyEndpoint(ctx context.Context, re *pb.AddThirdPartyEndpointsReq) (*pb.Empty, error) {
+	as := r.store.GetAppService(re.Sid)
+	if as == nil {
+		return new(pb.Empty), nil
+	}
+	rbdep := &v1.RbdEndpoint{
+		UUID: re.Uuid,
+		Sid:  re.Sid,
+		IP:   re.Ip,
+		Port: int(re.Port),
+	}
+	r.updateCh.In() <- discovery.Event{
+		Type: discovery.CreateEvent,
+		Obj:  rbdep,
+	}
+	return new(pb.Empty), nil
+}
+
+// UpdThirdPartyEndpoint creates a update event.
+func (r *RuntimeServer) UpdThirdPartyEndpoint(ctx context.Context, re *pb.UpdThirdPartyEndpointsReq) (*pb.Empty, error) {
+	as := r.store.GetAppService(re.Sid)
+	if as == nil {
+		return new(pb.Empty), nil
+	}
+	rbdep := &v1.RbdEndpoint{
+		UUID:     re.Uuid,
+		Sid:      re.Sid,
+		IP:       re.Ip,
+		Port:     int(re.Port),
+		IsOnline: re.IsOnline,
+	}
+	r.updateCh.In() <- discovery.Event{
+		Type: discovery.UpdateEvent,
+		Obj:  rbdep,
+	}
+	return new(pb.Empty), nil
+}
+
+// DelThirdPartyEndpoint creates a delete event.
+func (r *RuntimeServer) DelThirdPartyEndpoint(ctx context.Context, re *pb.DelThirdPartyEndpointsReq) (*pb.Empty, error) {
+	as := r.store.GetAppService(re.Sid)
+	if as == nil {
+		return new(pb.Empty), nil
+	}
+	r.updateCh.In() <- discovery.Event{
+		Type: discovery.DeleteEvent,
+		Obj: &v1.RbdEndpoint{
+			UUID: re.Uuid,
+			Sid:  re.Sid,
+		},
+	}
+	return new(pb.Empty), nil
 }

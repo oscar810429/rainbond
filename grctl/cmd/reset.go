@@ -19,26 +19,26 @@
 package cmd
 
 import (
-	"fmt"
+	//"fmt"
 	// "io/ioutil"
 	"os/exec"
 
 	//"github.com/goodrain/rainbond/event"
 
 	//"github.com/Sirupsen/logrus"
-	"github.com/urfave/cli"
 	"os"
 
+	"github.com/urfave/cli"
 	//"github.com/goodrain/rainbond/builder/sources"
 	//"github.com/goodrain/rainbond/grctl/clients"
 	//"flag"
 )
 
-//NewCmdInit grctl reset
+//NewCmdReset grctl reset
 func NewCmdReset() cli.Command {
 	c := cli.Command{
-		Name: "reset",
-		Usage: "重置当前节点grctl reset",
+		Name:  "reset",
+		Usage: "reset the current node",
 		Action: func(c *cli.Context) error {
 			resetCurrentNode(c)
 			return nil
@@ -47,11 +47,10 @@ func NewCmdReset() cli.Command {
 	return c
 }
 
-
 func resetCurrentNode(c *cli.Context) {
 
 	// stop rainbond services
-	fmt.Println("Start stop rainbond services")
+	//fmt.Println("Start stop rainbond services")
 	cmd := exec.Command("grclis", "reset")
 
 	cmd.Stdout = os.Stdout

@@ -19,10 +19,11 @@
 package db
 
 import (
+	"testing"
+
 	dbconfig "github.com/goodrain/rainbond/db/config"
 	"github.com/goodrain/rainbond/db/model"
 	"github.com/goodrain/rainbond/util"
-	"testing"
 )
 
 func TestIPPortImpl_UpdateModel(t *testing.T) {
@@ -208,7 +209,7 @@ func TestHTTPRuleImpl_ListByServiceID(t *testing.T) {
 	tx.Delete(model.HTTPRule{})
 	tx.Commit()
 
-	rules, err := GetManager().HttpRuleDao().ListByServiceID("")
+	rules, err := GetManager().HTTPRuleDao().ListByServiceID("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,12 +233,12 @@ func TestHTTPRuleImpl_ListByServiceID(t *testing.T) {
 		},
 	}
 	for _, rule := range rules {
-		err := GetManager().HttpRuleDao().AddModel(rule)
+		err := GetManager().HTTPRuleDao().AddModel(rule)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	rules, err = GetManager().HttpRuleDao().ListByServiceID(serviceID)
+	rules, err = GetManager().HTTPRuleDao().ListByServiceID(serviceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,50 +247,44 @@ func TestHTTPRuleImpl_ListByServiceID(t *testing.T) {
 	}
 }
 
-func TestTCPRuleImpl_ListByServiceID(t *testing.T) {
-	if err := CreateManager(dbconfig.Config{
-		DBType: "sqlite3",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	tx := GetManager().Begin()
-	tx.Delete(model.TCPRule{})
-	tx.Commit()
-
-	rules, err := GetManager().TcpRuleDao().ListByServiceID("")
+func TestGwRuleConfig(t *testing.T) {
+	dbm, err := CreateTestManager()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("error creating test db manager: %v", err)
 	}
-	if len(rules) != 0 {
-		t.Errorf("Expected 0 for len(rules), but returned %v", len(rules))
+	rid := util.NewUUID()
+	cfg := &model.GwRuleConfig{
+		RuleID:   rid,
+		Key:      "set-header-Host",
+		Value:    "$http_host",
 	}
-
-	serviceID := util.NewUUID()
-	rules = []*model.TCPRule{
-		{
-			UUID:      util.NewUUID(),
-			ServiceID: serviceID,
-		},
-		{
-			UUID:      util.NewUUID(),
-			ServiceID: serviceID,
-		},
-		{
-			UUID:      util.NewUUID(),
-			ServiceID: serviceID,
-		},
+	if err := dbm.GwRuleConfigDao().AddModel(cfg); err != nil {
+		t.Fatalf("error create rule config: %v", err)
 	}
-	for _, rule := range rules {
-		err := GetManager().TcpRuleDao().AddModel(rule)
-		if err != nil {
-			t.Fatal(err)
-		}
+	cfg2 := &model.GwRuleConfig{
+		RuleID:   rid,
+		Key:      "set-header-foo",
+		Value:    "bar",
 	}
-	rules, err = GetManager().TcpRuleDao().ListByServiceID(serviceID)
+	if err := dbm.GwRuleConfigDao().AddModel(cfg2); err != nil {
+		t.Fatalf("error create rule config: %v", err)
+	}
+	list, err := dbm.GwRuleConfigDao().ListByRuleID(rid)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("error listing configs: %v", err)
 	}
-	if len(rules) != 3 {
-		t.Errorf("Expected 3 for len(rules), but returned %v", len(rules))
+	if list == nil && len(list) != 2 {
+		t.Errorf("Expected 2 for the length fo list, but returned %d", len(list))
+	} 
+
+	if err := dbm.GwRuleConfigDao().DeleteByRuleID(rid); err != nil {
+		t.Fatalf("error deleting rule config: %v", err)
 	}
+	list, err = dbm.GwRuleConfigDao().ListByRuleID(rid)
+	if err != nil {
+		t.Fatalf("error listing configs: %v", err)
+	}
+	if list != nil && len(list) > 0 {
+		t.Errorf("Expected empty for list, but returned %+v", list)
+	} 
 }

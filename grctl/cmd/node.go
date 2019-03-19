@@ -50,11 +50,16 @@ func showError(m string) {
 	os.Exit(1)
 }
 
+func showSuccessMsg(m string) {
+	fmt.Printf("Success: %s\n", m)
+	os.Exit(0)
+}
+
 //NewCmdShow show
 func NewCmdShow() cli.Command {
 	c := cli.Command{
 		Name:  "show",
-		Usage: "显示region安装完成后访问地址",
+		Usage: "Display region api address after installation",
 		Action: func(c *cli.Context) error {
 			Common(c)
 			manageHosts, err := clients.RegionClient.Nodes().GetNodeByRule("manage")
@@ -140,12 +145,11 @@ func getStatusShow(v *client.HostNode) (status string) {
 	return nss.String()
 }
 func handleStatus(serviceTable *termtables.Table, v *client.HostNode) {
-	serviceTable.AddRow(v.ID, v.InternalIP, v.HostName, v.Role.String(), v.Mode, getStatusShow(v))
+	serviceTable.AddRow(v.ID, v.InternalIP, v.HostName, v.Role.String(), getStatusShow(v))
 }
 
-func handleResult(serviceTable *termtables.Table, v *client.HostNode) {
-
-	for _, v := range v.NodeStatus.Conditions {
+func handleConditionResult(serviceTable *termtables.Table, conditions []client.NodeCondition) {
+	for _, v := range conditions {
 		if v.Type == client.NodeReady {
 			continue
 		}
@@ -167,8 +171,8 @@ func handleResult(serviceTable *termtables.Table, v *client.HostNode) {
 	}
 }
 
-func extractReady(serviceTable *termtables.Table, v *client.HostNode, name string) {
-	for _, v := range v.NodeStatus.Conditions {
+func extractReady(serviceTable *termtables.Table, conditions []client.NodeCondition, name string) {
+	for _, v := range conditions {
 		if string(v.Type) == name {
 			var formatReady string
 			if v.Status == client.ConditionFalse {
@@ -192,7 +196,7 @@ func handleMessage(status string, message string) string {
 func NewCmdNode() cli.Command {
 	c := cli.Command{
 		Name:  "node",
-		Usage: "节点管理相关操作",
+		Usage: "rainbond node manage cmd",
 		Subcommands: []cli.Command{
 			{
 				Name:  "get",
@@ -244,8 +248,8 @@ func NewCmdNode() cli.Command {
 					fmt.Printf("-------------------Service health-----------------------\n")
 					serviceTable := termtables.CreateTable()
 					serviceTable.AddHeaders("Condition", "Result", "Message")
-					extractReady(serviceTable, v, "Ready")
-					handleResult(serviceTable, v)
+					extractReady(serviceTable, v.NodeStatus.Conditions, "Ready")
+					handleConditionResult(serviceTable, v.NodeStatus.Conditions)
 					fmt.Println(serviceTable.Render())
 					return nil
 				},
@@ -258,7 +262,7 @@ func NewCmdNode() cli.Command {
 					list, err := clients.RegionClient.Nodes().List()
 					handleErr(err)
 					serviceTable := termtables.CreateTable()
-					serviceTable.AddHeaders("Uid", "IP", "HostName", "NodeRole", "NodeMode", "Status")
+					serviceTable.AddHeaders("Uid", "IP", "HostName", "NodeRole", "Status")
 					var rest []*client.HostNode
 					for _, v := range list {
 						if v.Role.HasRule("manage") {
@@ -399,7 +403,7 @@ func NewCmdNode() cli.Command {
 					hostnodes, err := clients.RegionClient.Nodes().GetNodeByRule(rule)
 					handleErr(err)
 					serviceTable := termtables.CreateTable()
-					serviceTable.AddHeaders("Uid", "IP", "HostName", "NodeRole", "NodeMode", "Status")
+					serviceTable.AddHeaders("Uid", "IP", "HostName", "NodeRole", "Status")
 					for _, v := range hostnodes {
 						handleStatus(serviceTable, v)
 					}
@@ -459,6 +463,77 @@ func NewCmdNode() cli.Command {
 							k := c.String("key")
 							err := clients.RegionClient.Nodes().Label(hostID).Delete(k)
 							handleErr(err)
+							return nil
+						},
+					},
+					cli.Command{
+						Name:  "list",
+						Usage: "list the label of the specified node",
+						Flags: []cli.Flag{},
+						Action: func(c *cli.Context) error {
+							Common(c)
+							hostID := c.Args().First()
+							if hostID == "" {
+								logrus.Errorf("need hostID")
+								return nil
+							}
+							labels, err := clients.RegionClient.Nodes().Label(hostID).List()
+							handleErr(err)
+							labelTable := termtables.CreateTable()
+							labelTable.AddHeaders("LableKey", "LableValue")
+							for k, v := range labels {
+								labelTable.AddRow(k, v)
+							}
+							fmt.Print(labelTable.Render())
+							return nil
+						},
+					},
+				},
+			},
+			{
+				Name:  "condition",
+				Usage: "handle node conditions, support delete and list",
+				Subcommands: []cli.Command{
+					cli.Command{
+						Name:  "delete",
+						Usage: "delete condition for the specified node",
+						Flags: []cli.Flag{
+							cli.StringFlag{
+								Name:  "name,n",
+								Value: "",
+								Usage: "the condition type name",
+							},
+						},
+						Action: func(c *cli.Context) error {
+							Common(c)
+							hostID := c.Args().First()
+							if hostID == "" {
+								logrus.Errorf("need hostID")
+								return nil
+							}
+							conditionType := c.String("name")
+							_, err := clients.RegionClient.Nodes().Condition(hostID).Delete(client.NodeConditionType(conditionType))
+							handleErr(err)
+							showSuccessMsg("delete condition success")
+							return nil
+						},
+					},
+					cli.Command{
+						Name:  "list",
+						Usage: "list the conditions of the specified node",
+						Action: func(c *cli.Context) error {
+							Common(c)
+							hostID := c.Args().First()
+							if hostID == "" {
+								logrus.Errorf("need hostID")
+								return nil
+							}
+							conditions, err := clients.RegionClient.Nodes().Condition(hostID).List()
+							handleErr(err)
+							serviceTable := termtables.CreateTable()
+							serviceTable.AddHeaders("Condition", "Result", "Message")
+							handleConditionResult(serviceTable, conditions)
+							fmt.Println(serviceTable.Render())
 							return nil
 						},
 					},
@@ -548,12 +623,11 @@ func NewCmdNode() cli.Command {
 					node.Privatekey = c.String("private-key")
 					node.AutoInstall = false
 					node.ID = c.String("id")
-					err := clients.RegionClient.Nodes().Add(&node)
+					renode, err := clients.RegionClient.Nodes().Add(&node)
 					handleErr(err)
 					if c.Bool("install") {
-						node, err := clients.RegionClient.Nodes().Get(node.ID)
 						handleErr(err)
-						installNode(node)
+						installNode(renode)
 					} else {
 						fmt.Println("success add node, you install it by running: grctl node install <nodeID>")
 					}

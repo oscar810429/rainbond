@@ -35,13 +35,13 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/goodrain/rainbond/cmd/api/option"
 
-	"github.com/goodrain/rainbond/api/apiRouters/doc"
-	"github.com/goodrain/rainbond/api/apiRouters/license"
+	"github.com/goodrain/rainbond/api/api_routers/doc"
+	"github.com/goodrain/rainbond/api/api_routers/license"
 	"github.com/goodrain/rainbond/api/proxy"
 
-	"github.com/goodrain/rainbond/api/apiRouters/cloud"
-	"github.com/goodrain/rainbond/api/apiRouters/version2"
-	"github.com/goodrain/rainbond/api/apiRouters/websocket"
+	"github.com/goodrain/rainbond/api/api_routers/cloud"
+	"github.com/goodrain/rainbond/api/api_routers/version2"
+	"github.com/goodrain/rainbond/api/api_routers/websocket"
 
 	apimiddleware "github.com/goodrain/rainbond/api/middleware"
 
@@ -157,10 +157,10 @@ func (m *Manager) Run() {
 		websocketRouter.Mount("/logs", websocket.LogRoutes())
 		websocketRouter.Mount("/app", websocket.AppRoutes())
 		if m.conf.WebsocketSSL {
-			logrus.Infof("websocket listen on (HTTPs) 0.0.0.0%v", m.conf.WebsocketAddr)
+			logrus.Infof("websocket listen on (HTTPs) %s", m.conf.WebsocketAddr)
 			logrus.Fatal(http.ListenAndServeTLS(m.conf.WebsocketAddr, m.conf.WebsocketCertFile, m.conf.WebsocketKeyFile, websocketRouter))
 		} else {
-			logrus.Infof("websocket listen on (HTTP) 0.0.0.0%v", m.conf.WebsocketAddr)
+			logrus.Infof("websocket listen on (HTTP) %s", m.conf.WebsocketAddr)
 			logrus.Fatal(http.ListenAndServe(m.conf.WebsocketAddr, websocketRouter))
 		}
 	}()
@@ -181,11 +181,11 @@ func (m *Manager) Run() {
 					ClientAuth: tls.RequireAndVerifyClientCert,
 				},
 			}
-			logrus.Infof("api listen on (HTTPs) 0.0.0.0%v", m.conf.APIAddrSSL)
+			logrus.Infof("api listen on (HTTPs) %s", m.conf.APIAddrSSL)
 			logrus.Fatal(s.ListenAndServeTLS(m.conf.APICertFile, m.conf.APIKeyFile))
 		}()
 	}
-	logrus.Infof("api listen on (HTTP) 0.0.0.0%v", m.conf.APIAddr)
+	logrus.Infof("api listen on (HTTP) %s", m.conf.APIAddr)
 	logrus.Fatal(http.ListenAndServe(m.conf.APIAddr, m.r))
 }
 

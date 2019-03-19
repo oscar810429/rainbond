@@ -90,6 +90,59 @@ type RuleExtensionStruct struct {
 
 // IPPoolStruct contains request data for AddIPPool or UpdateIPPool
 type IPPoolStruct struct {
-	EID string `json:"eid" validate:"eid|required"`
+	EID  string `json:"eid" validate:"eid|required"`
 	CIDR string `json:"cidr" validate:"cidr|required"`
+}
+
+// AddRuleConfigReq -
+type AddRuleConfigReq struct {
+	ConfigID string `json:"config_id" validate:"config_id|required"`
+	RuleID   string `json:"rule_id" validate:"rule_id|required"`
+	Key      string `json:"key" validate:"key|required"`
+	Value    string `json:"value" validate:"value|required"`
+}
+
+// UpdRuleConfigReq -
+type UpdRuleConfigReq struct {
+	ConfigID string `json:"config_id" validate:"config_id|required"`
+	Key      string `json:"key"`
+	Value    string `json:"value"`
+}
+
+// DelRuleConfigReq -
+type DelRuleConfigReq struct {
+	ConfigID string `json:"config_id" validate:"config_id|required"`
+}
+
+// AddOrUpdRuleConfigReq -
+type AddOrUpdRuleConfigReq struct {
+	Configs []*AddRuleConfigReq `json:"configs"`
+}
+
+// RuleConfigReq -
+type RuleConfigReq struct {
+	RuleID string `json:"rule_id,omitempty" validate:"rule_id|required"`
+	Body   Body   `json:"body" validate:"body|required"`
+}
+
+// Body is a embeded sturct of RuleConfigReq.
+type Body struct {
+	ProxyConnectTimeout int          `json:"proxy_connect_timeout,omitempty" validate:"proxy_connect_timeout|required"`
+	ProxySendTimeout    int          `json:"proxy_send_timeout,omitempty" validate:"proxy_send_timeout|required"`
+	ProxyReadTimeout    int          `json:"proxy_read_timeout,omitempty" validate:"proxy_read_timeout|required"`
+	ProxyBodySize       int          `json:"proxy_body_size,omitempty" validate:"proxy_body_size|required"`
+	SetHeaders          []*SetHeader `json:"set_headers,omitempty" `
+	Rewrites            []*Rewrite   `json:"rewrite,omitempty"`
+}
+
+type SetHeader struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// Rewrite is a embeded sturct of Body.
+type Rewrite struct {
+	Regex       string `json:"regex"`
+	Replacement string `json:"replacement"`
+	Flag        string `json:"flag" validate:"flag|in:last,break,redirect,permanent"`
 }

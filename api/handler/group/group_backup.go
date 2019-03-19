@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goodrain/rainbond/worker/appm/types/v1"
+	v1 "github.com/goodrain/rainbond/worker/appm/types/v1"
 
 	"github.com/coreos/etcd/clientv3"
 
@@ -203,12 +203,21 @@ type RegionServiceSnapshot struct {
 	ServiceVolume      []*dbmodel.TenantServiceVolume
 	ServicePort        []*dbmodel.TenantServicesPort
 	Versions           []*dbmodel.VersionInfo
+	PluginConfigs      []*dbmodel.TenantPluginVersionDiscoverConfig
 }
 
 //snapshot
 func (h *BackupHandle) snapshot(ids []string, sourceDir string) error {
 	var datas []RegionServiceSnapshot
 	for _, id := range ids {
+		service, err := db.GetManager().TenantServiceDao().GetServiceByID(id)
+		if err != nil {
+			return fmt.Errorf("Get service(%s) error %s", id, err.Error())
+		}
+		if dbmodel.ServiceKind(service.Kind) == dbmodel.ServiceKindThirdParty {
+			//TODO: support thirdpart service backup and restore
+			continue
+		}
 		var data = RegionServiceSnapshot{
 			ServiceID: id,
 		}
@@ -221,10 +230,6 @@ func (h *BackupHandle) snapshot(ids []string, sourceDir string) error {
 			return fmt.Errorf("Statefulset app must be closed before backup,%s", err.Error())
 		}
 		data.ServiceStatus = status
-		service, err := db.GetManager().TenantServiceDao().GetServiceByID(id)
-		if err != nil {
-			return fmt.Errorf("Get service(%s) error %s", id, err.Error())
-		}
 		data.Service = service
 		serviceProbes, err := db.GetManager().ServiceProbeDao().GetServiceProbes(id)
 		if err != nil && err.Error() != gorm.ErrRecordNotFound.Error() {
@@ -276,6 +281,11 @@ func (h *BackupHandle) snapshot(ids []string, sourceDir string) error {
 			return fmt.Errorf("Get service(%s) build versions error %s", id, err)
 		}
 		data.Versions = versions
+		pluginConfigs, err := db.GetManager().TenantPluginVersionConfigDao().GetPluginConfigs(id)
+		if err != nil && err.Error() != gorm.ErrRecordNotFound.Error() {
+			return fmt.Errorf("Get service(%s) plugin configs error %s", id, err)
+		}
+		data.PluginConfigs = pluginConfigs
 		datas = append(datas, data)
 	}
 	body, err := ffjson.Marshal(datas)

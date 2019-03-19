@@ -98,9 +98,9 @@ func fatal(msg string, code int) {
 	os.Exit(code)
 }
 
-// Get Tenantname Path
+//GetTenantNamePath Get Tenantname Path
 func GetTenantNamePath() string {
-	tenantnamepath,err := conf.GetTenantNamePath()
+	tenantnamepath, err := conf.GetTenantNamePath()
 	if err != nil {
 		logrus.Warn("Ger Home error", err.Error())
 		return tenantnamepath

@@ -32,6 +32,7 @@ var etcdV2Endpoints = []string{"http://127.0.0.1:4001"}
 var etcdV3Endpoints = []string{"127.0.0.1:2379"}
 var clusterAddress = []string{defaultClusterAddress}
 
+//Dis dis manage
 type Dis struct {
 	discoverAddress string
 }
@@ -63,7 +64,7 @@ func (c *Dis) discoverEventServer() {
 				}
 			}
 		}
-		time.Sleep(time.Minute)
+		time.Sleep(time.Second * 10)
 	}
 }
 
@@ -79,6 +80,7 @@ type ResponseBody struct {
 	Page int `json:"page,omitempty"`
 }
 
+//Endpoint endpoint
 type Endpoint struct {
 	Name   string `json:"name"`
 	URL    string `json:"url"`
@@ -281,7 +283,7 @@ func (s *StreamLog) ping() {
 
 //Log log
 func (s *StreamLog) Log(msg *logger.Message) error {
-	defer func() { //必须要先声明defer，否则不能捕获到panic异常
+	defer func() {
 		if err := recover(); err != nil {
 			logrus.Error("Stream log pinic.", err)
 		}
@@ -289,7 +291,9 @@ func (s *StreamLog) Log(msg *logger.Message) error {
 	buf := bytes.NewBuffer(nil)
 	buf.WriteString(s.containerID[0:12] + ",")
 	buf.WriteString(s.serviceID)
-	buf.WriteString(string(msg.Line))
+	if len(msg.Line) > 8 {
+		buf.Write(msg.Line[8:])
+	}
 	s.cache(buf.String())
 	return nil
 }
@@ -370,10 +374,10 @@ func (s *StreamLog) Name() string {
 func GetLogAddress(serviceID string) string {
 	var cluster []string
 	if len(clusterAddress) < 1 {
-		cluster = append(clusterAddress, defaultClusterAddress+"?service_id="+serviceID+"&mode=stream")
+		cluster = append(cluster, defaultClusterAddress+"?service_id="+serviceID+"&mode=stream")
 	} else {
 		for _, a := range clusterAddress {
-			cluster = append(clusterAddress, a+"?service_id="+serviceID+"&mode=stream")
+			cluster = append(cluster, a+"?service_id="+serviceID+"&mode=stream")
 		}
 	}
 	return getLogAddress(cluster)
@@ -398,7 +402,7 @@ func getLogAddress(clusterAddress []string) string {
 		if status, ok := host["status"]; ok && status == "success" {
 			return host["host"]
 		}
-		logrus.Warningf("Error get host info from %s. result is not success", address)
+		logrus.Warningf("Error get host info from %s. result is not success. body is:%v", address, host)
 	}
 	logrus.Warning("no cluster is running. return default address")
 	return defaultAddress

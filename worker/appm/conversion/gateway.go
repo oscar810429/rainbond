@@ -20,8 +20,6 @@ package conversion
 
 import (
 	"fmt"
-	"github.com/goodrain/rainbond/util"
-	"github.com/jinzhu/gorm"
 	"os"
 	"strings"
 
@@ -61,18 +59,21 @@ func TenantServiceRegist(as *v1.AppService, dbmanager db.Manager) error {
 		return err
 	}
 
-	svcs, ings, secs, err := builder.Build()
+	k8s, err := builder.Build()
 	if err != nil {
-		logrus.Error("build k8s services error:", err.Error())
+		logrus.Error("error creating app service: ", err.Error())
 		return err
 	}
-	for _, service := range svcs {
+	if k8s == nil {
+		return nil
+	}
+	for _, service := range k8s.Services {
 		as.SetService(service)
 	}
-	for _, ing := range ings {
+	for _, ing := range k8s.Ingresses {
 		as.SetIngress(ing)
 	}
-	for _, sec := range secs {
+	for _, sec := range k8s.Secrets {
 		as.SetSecret(sec)
 	}
 
@@ -82,12 +83,12 @@ func TenantServiceRegist(as *v1.AppService, dbmanager db.Manager) error {
 //AppServiceBuild has the ability to build k8s service, ingress and secret
 type AppServiceBuild struct {
 	serviceID, eventID string
-	service            *model.TenantServices
 	tenant             *model.Tenants
+	service            *model.TenantServices
+	appService         *v1.AppService
+	replicationType    string
 	dbmanager          db.Manager
 	logger             event.Logger
-	replicationType    string
-	appService         *v1.AppService
 }
 
 //AppServiceBuilder returns a AppServiceBuild
@@ -119,14 +120,14 @@ func AppServiceBuilder(serviceID, replicationType string, dbmanager db.Manager, 
 }
 
 //Build builds service, ingress and secret for each port
-func (a *AppServiceBuild) Build() ([]*corev1.Service, []*extensions.Ingress, []*corev1.Secret, error) {
+func (a *AppServiceBuild) Build() (*v1.K8sResources, error) {
 	ports, err := a.dbmanager.TenantServicesPortDao().GetPortsByServiceID(a.serviceID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("find service port from db error %s", err.Error())
+		return nil, fmt.Errorf("find service port from db error %s", err.Error())
 	}
 	crt, err := a.checkUpstreamPluginRelation()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("get service upstream plugin relation error, %s", err.Error())
+		return nil, fmt.Errorf("get service upstream plugin relation error, %s", err.Error())
 	}
 	pp := make(map[int32]int)
 	if crt {
@@ -135,12 +136,12 @@ func (a *AppServiceBuild) Build() ([]*corev1.Service, []*extensions.Ingress, []*
 			model.UpNetPlugin,
 		)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("find upstream plugin mapping port error, %s", err.Error())
+			return nil, fmt.Errorf("find upstream plugin mapping port error, %s", err.Error())
 		}
 		ports, pp, err = a.CreateUpstreamPluginMappingPort(ports, pluginPorts)
 	}
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create upstream port error, %s", err.Error())
+		return nil, fmt.Errorf("create upstream port error, %s", err.Error())
 	}
 	var services []*corev1.Service
 	var ingresses []*extensions.Ingress
@@ -153,17 +154,16 @@ func (a *AppServiceBuild) Build() ([]*corev1.Service, []*extensions.Ingress, []*
 			}
 			if port.IsOuterService {
 				service := a.createOuterService(port)
-
+				services = append(services, service)
 				ings, secret, err := a.ApplyRules(port, service)
 				if err != nil {
-					return nil, nil, nil, err
+					logrus.Debugf("error applying rules: %s", err.Error())
+					return nil, err
 				}
 				ingresses = append(ingresses, ings...)
 				if secret != nil {
 					secrets = append(secrets, secret)
 				}
-
-				services = append(services, service)
 			}
 		}
 	}
@@ -176,7 +176,11 @@ func (a *AppServiceBuild) Build() ([]*corev1.Service, []*extensions.Ingress, []*
 		services, _ = a.CreateUpstreamPluginMappingService(services, pp)
 	}
 
-	return services, ingresses, secrets, nil
+	return &v1.K8sResources{
+		Services:  services,
+		Secrets:   secrets,
+		Ingresses: ingresses,
+	}, nil
 }
 
 // ApplyRules applies http rules and tcp rules
@@ -184,7 +188,7 @@ func (a AppServiceBuild) ApplyRules(port *model.TenantServicesPort,
 	service *corev1.Service) ([]*extensions.Ingress, *corev1.Secret, error) {
 	var ingresses []*extensions.Ingress
 	var secret *corev1.Secret
-	httpRules, err := a.dbmanager.HttpRuleDao().GetHttpRuleByServiceIDAndContainerPort(port.ServiceID,
+	httpRules, err := a.dbmanager.HTTPRuleDao().GetHTTPRuleByServiceIDAndContainerPort(port.ServiceID,
 		port.ContainerPort)
 	if err != nil {
 		logrus.Infof("Can't get HTTPRule corresponding to ServiceID(%s): %v", port.ServiceID, err)
@@ -201,17 +205,10 @@ func (a AppServiceBuild) ApplyRules(port *model.TenantServicesPort,
 			ingresses = append(ingresses, ing)
 			secret = sec
 		}
-	} else if port.Protocol == "http" { // if there is no http rule, then create a default ingress
-		httpRule := &model.HTTPRule{
-			UUID: fmt.Sprintf("%s%s", util.NewUUID()[0:7], "default"),
-		}
-		// the default ingress will not have error
-		ing, _, _ := a.applyHTTPRule(httpRule, port, service)
-		ingresses = append(ingresses, ing)
 	}
 
 	// create tcp ingresses
-	tcpRules, err := a.dbmanager.TcpRuleDao().GetTcpRuleByServiceIDAndContainerPort(port.ServiceID,
+	tcpRules, err := a.dbmanager.TCPRuleDao().GetTCPRuleByServiceIDAndContainerPort(port.ServiceID,
 		port.ContainerPort)
 	if err != nil {
 		logrus.Infof("Can't get TCPRule corresponding to ServiceID(%s): %v", port.ServiceID, err)
@@ -226,25 +223,6 @@ func (a AppServiceBuild) ApplyRules(port *model.TenantServicesPort,
 			}
 			ingresses = append(ingresses, ing)
 		}
-	} else if port.Protocol != "http" { // if there is no tcp rule, then create a default ingress
-		mappingPort, err := a.dbmanager.TenantServiceLBMappingPortDao().GetTenantServiceLBMappingPort(port.ServiceID, port.ContainerPort)
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				logrus.Warningf("TenantServiceLBMappingPort(ServiceID=%s, ContainerPort=%d) not found, ignore it",
-					port.ServiceID, port.ContainerPort)
-				return ingresses, secret, nil
-			}
-			return nil, nil, err
-		}
-		tcpRule := &model.TCPRule{
-			UUID: fmt.Sprintf("%s%s", util.NewUUID()[0:7], "default"),
-			Port: mappingPort.Port,
-		}
-		ing, err := a.applyTCPRule(tcpRule, service, a.tenant.UUID)
-		if err != nil {
-			return nil, nil, err
-		}
-		ingresses = append(ingresses, ing)
 	}
 
 	return ingresses, secret, nil
@@ -333,37 +311,45 @@ func (a *AppServiceBuild) applyHTTPRule(rule *model.HTTPRule, port *model.Tenant
 		}
 	}
 	// rule extension
-	if rule.UUID != "default" { // the default http rule has no rule extensions
-		ruleExtensions, err := a.dbmanager.RuleExtensionDao().GetRuleExtensionByRuleID(rule.UUID)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, extension := range ruleExtensions {
-			switch extension.Key {
-			case string(model.HTTPToHTTPS):
-				if rule.CertificateID == "" {
-					logrus.Warningf("enable force-ssl-redirect, but with no certificate. rule id is: %s", rule.UUID)
-					break
-				}
-				annos[parser.GetAnnotationWithPrefix("force-ssl-redirect")] = "true"
-			case string(model.LBType):
-				if strings.HasPrefix(extension.Value, "upstream-hash-by") {
-					s := strings.Split(extension.Value, ":")
-					if len(s) < 2 {
-						logrus.Warningf("invalid extension value for upstream-hash-by: %s", extension.Value)
-						break
-					}
-					annos[parser.GetAnnotationWithPrefix("upstream-hash-by")] = s[1]
-					break
-				}
-				annos[parser.GetAnnotationWithPrefix("lb-type")] = extension.Value
-
-			default:
-				logrus.Warnf("Unexpected RuleExtension Key: %s", extension.Key)
-			}
-		}
-		ing.SetAnnotations(annos)
+	ruleExtensions, err := a.dbmanager.RuleExtensionDao().GetRuleExtensionByRuleID(rule.UUID)
+	if err != nil {
+		return nil, nil, err
 	}
+	for _, extension := range ruleExtensions {
+		switch extension.Key {
+		case string(model.HTTPToHTTPS):
+			if rule.CertificateID == "" {
+				logrus.Warningf("enable force-ssl-redirect, but with no certificate. rule id is: %s", rule.UUID)
+				break
+			}
+			annos[parser.GetAnnotationWithPrefix("force-ssl-redirect")] = "true"
+		case string(model.LBType):
+			if strings.HasPrefix(extension.Value, "upstream-hash-by") {
+				s := strings.Split(extension.Value, ":")
+				if len(s) < 2 {
+					logrus.Warningf("invalid extension value for upstream-hash-by: %s", extension.Value)
+					break
+				}
+				annos[parser.GetAnnotationWithPrefix("upstream-hash-by")] = s[1]
+				break
+			}
+			annos[parser.GetAnnotationWithPrefix("lb-type")] = extension.Value
+
+		default:
+			logrus.Warnf("Unexpected RuleExtension Key: %s", extension.Key)
+		}
+	}
+
+	configs, err := db.GetManager().GwRuleConfigDao().ListByRuleID(rule.UUID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if configs != nil && len(configs) > 0 {
+		for _, cfg := range configs {
+			annos[parser.GetAnnotationWithPrefix(cfg.Key)] = cfg.Value
+		}
+	}
+	ing.SetAnnotations(annos)
 
 	return ing, sec, nil
 }
@@ -487,8 +473,10 @@ func (a *AppServiceBuild) createInnerService(port *model.TenantServicesPort) *co
 		servicePort.Port = int32(port.ContainerPort)
 	}
 	spec := corev1.ServiceSpec{
-		Ports:    []corev1.ServicePort{servicePort},
-		Selector: map[string]string{"name": a.service.ServiceAlias},
+		Ports: []corev1.ServicePort{servicePort},
+	}
+	if a.appService.ServiceKind != model.ServiceKindThirdParty {
+		spec.Selector = map[string]string{"name": a.service.ServiceAlias}
 	}
 	service.Spec = spec
 	return &service
@@ -521,9 +509,11 @@ func (a *AppServiceBuild) createOuterService(port *model.TenantServicesPort) *co
 		portType = corev1.ServiceTypeClusterIP
 	}
 	spec := corev1.ServiceSpec{
-		Ports:    []corev1.ServicePort{servicePort},
-		Selector: map[string]string{"name": a.service.ServiceAlias},
-		Type:     portType,
+		Ports: []corev1.ServicePort{servicePort},
+		Type:  portType,
+	}
+	if a.appService.ServiceKind != model.ServiceKindThirdParty {
+		spec.Selector = map[string]string{"name": a.service.ServiceAlias}
 	}
 	service.Spec = spec
 	return &service
@@ -559,5 +549,6 @@ func (a *AppServiceBuild) createStatefulService(ports []*model.TenantServicesPor
 		PublishNotReadyAddresses: true,
 	}
 	service.Spec = spec
+	service.Annotations = map[string]string{"service.alpha.kubernetes.io/tolerate-unready-endpoints": "true"}
 	return &service
 }

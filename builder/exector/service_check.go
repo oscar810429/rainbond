@@ -27,8 +27,8 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/goodrain/rainbond/builder/parser"
 	"github.com/goodrain/rainbond/event"
-	"github.com/pquerna/ffjson/ffjson"
 	"github.com/goodrain/rainbond/mq/api/grpc/pb"
+	"github.com/pquerna/ffjson/ffjson"
 )
 
 //ServiceCheckInput 任务输入数据
@@ -114,6 +114,8 @@ func (e *exectorManager) serviceCheck(task *pb.TaskMessage) {
 		pr = parser.CreateDockerComposeParse(string(y), e.DockerClient, logger)
 	case "sourcecode":
 		pr = parser.CreateSourceCodeParse(input.SourceBody, logger)
+	case "third-party-service":
+		pr = parser.CreateThirdPartyServiceParse(input.SourceBody, logger)
 	}
 	if pr == nil {
 		logger.Error("创建应用来源类型不支持。", map[string]string{"step": "callback", "status": "failure"})

@@ -22,14 +22,18 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/eapache/channels"
 	"github.com/goodrain/rainbond/cmd/worker/option"
 	"github.com/goodrain/rainbond/db"
+	dbmodel "github.com/goodrain/rainbond/db/model"
 	"github.com/goodrain/rainbond/event"
 	"github.com/goodrain/rainbond/worker/appm/controller"
 	"github.com/goodrain/rainbond/worker/appm/conversion"
 	"github.com/goodrain/rainbond/worker/appm/store"
+	"github.com/goodrain/rainbond/worker/appm/types/v1"
 	"github.com/goodrain/rainbond/worker/discover/model"
 )
 
@@ -40,13 +44,16 @@ type Manager struct {
 	store             store.Storer
 	dbmanager         db.Manager
 	controllerManager *controller.Manager
+
+	startCh *channels.RingChannel
 }
 
 //NewManager now handle
 func NewManager(ctx context.Context,
 	config option.Config,
 	store store.Storer,
-	controllerManager *controller.Manager) *Manager {
+	controllerManager *controller.Manager,
+	startCh *channels.RingChannel) *Manager {
 
 	return &Manager{
 		ctx:               ctx,
@@ -54,6 +61,7 @@ func NewManager(ctx context.Context,
 		dbmanager:         db.GetManager(),
 		store:             store,
 		controllerManager: controllerManager,
+		startCh:           startCh,
 	}
 }
 
@@ -101,7 +109,11 @@ func (m *Manager) AnalystToExec(task *model.Task) error {
 	case "apply_rule":
 		logrus.Info("start a 'apply_rule' task worker")
 		return m.applyRuleExec(task)
+	case "apply_plugin_config":
+		logrus.Info("start a 'apply_plugin_config' task worker")
+		return m.applyPluginConfig(task)
 	default:
+		logrus.Warning("task can not execute because no type is identified")
 		return nil
 	}
 }
@@ -120,7 +132,7 @@ func (m *Manager) startExec(task *model.Task) error {
 		event.GetManager().ReleaseLogger(logger)
 		return nil
 	}
-	newAppService, err := conversion.InitAppService(m.dbmanager, body.ServiceID)
+	newAppService, err := conversion.InitAppService(m.dbmanager, body.ServiceID, body.Configs)
 	if err != nil {
 		logrus.Errorf("Application init create failure:%s", err.Error())
 		logger.Error("Application init create failure", controller.GetCallbackLoggerOption())
@@ -155,6 +167,9 @@ func (m *Manager) stopExec(task *model.Task) error {
 		return nil
 	}
 	appService.Logger = logger
+	for k, v := range body.Configs {
+		appService.ExtensionSet[k] = v
+	}
 	err := m.controllerManager.StartController(controller.TypeStopController, *appService)
 	if err != nil {
 		logrus.Errorf("Application run  stop controller failure:%s", err.Error())
@@ -180,6 +195,9 @@ func (m *Manager) restartExec(task *model.Task) error {
 		return nil
 	}
 	appService.Logger = logger
+	for k, v := range body.Configs {
+		appService.ExtensionSet[k] = v
+	}
 	//first stop app
 	err := m.controllerManager.StartController(controller.TypeRestartController, *appService)
 	if err != nil {
@@ -247,7 +265,7 @@ func (m *Manager) verticalScalingExec(task *model.Task) error {
 	appService.ContainerCPU = service.ContainerCPU
 	appService.ContainerMemory = service.ContainerMemory
 	appService.Logger = logger
-	newAppService, err := conversion.InitAppService(m.dbmanager, body.ServiceID)
+	newAppService, err := conversion.InitAppService(m.dbmanager, body.ServiceID, nil)
 	if err != nil {
 		logrus.Errorf("Application init create failure:%s", err.Error())
 		logger.Error("Application init create failure", controller.GetCallbackLoggerOption())
@@ -274,7 +292,7 @@ func (m *Manager) rollingUpgradeExec(task *model.Task) error {
 		return fmt.Errorf("rolling_upgrade body convert to taskbody error")
 	}
 	logger := event.GetManager().GetLogger(body.EventID)
-	newAppService, err := conversion.InitAppService(m.dbmanager, body.ServiceID)
+	newAppService, err := conversion.InitAppService(m.dbmanager, body.ServiceID, body.Configs)
 	if err != nil {
 		logrus.Errorf("Application init create failure:%s", err.Error())
 		logger.Error("Application init create failure", controller.GetCallbackLoggerOption())
@@ -306,10 +324,8 @@ func (m *Manager) rollingUpgradeExec(task *model.Task) error {
 		logger.Error(fmt.Sprintf("Application get upgrade info error:%s", err.Error()), controller.GetCallbackLoggerOption())
 		return nil
 	}
-	oldAppService.Logger = logger
-	oldAppService.DeployVersion = newAppService.DeployVersion
 	//if service already deploy,upgrade it:
-	err = m.controllerManager.StartController(controller.TypeUpgradeController, *oldAppService)
+	err = m.controllerManager.StartController(controller.TypeUpgradeController, *newAppService)
 	if err != nil {
 		logrus.Errorf("Application run  upgrade controller failure:%s", err.Error())
 		logger.Info("Application run upgrade controller failure", controller.GetCallbackLoggerOption())
@@ -326,15 +342,29 @@ func (m *Manager) applyRuleExec(task *model.Task) error {
 		logrus.Errorf("Can't convert %s to *model.ApplyRuleTaskBody", reflect.TypeOf(task.Body))
 		return fmt.Errorf("Can't convert %s to *model.ApplyRuleTaskBody", reflect.TypeOf(task.Body))
 	}
+	svc, err := db.GetManager().TenantServiceDao().GetServiceByID(body.ServiceID)
+	if err != nil {
+		logrus.Errorf("error get TenantServices: %v", err)
+		return fmt.Errorf("error get TenantServices: %v", err)
+	}
 	logger := event.GetManager().GetLogger(body.EventID)
 	oldAppService := m.store.GetAppService(body.ServiceID)
-	if oldAppService == nil || oldAppService.IsClosed() {
-		logrus.Debugf("service is closed,no need handle")
-		logger.Info("service is closed,no need handle", controller.GetLastLoggerOption())
-		event.GetManager().ReleaseLogger(logger)
-		return nil
+	logrus.Debugf("body action: %s", body.Action)
+	if svc.Kind != dbmodel.ServiceKindThirdParty.String() && !strings.HasPrefix(body.Action, "port") {
+		if oldAppService == nil || oldAppService.IsClosed() {
+			logrus.Debugf("service is closed, no need handle")
+			logger.Info("service is closed,no need handle", controller.GetLastLoggerOption())
+			event.GetManager().ReleaseLogger(logger)
+			return nil
+		}
 	}
-	newAppService, err := conversion.InitAppService(m.dbmanager, body.ServiceID)
+	var newAppService *v1.AppService
+	if svc.Kind == dbmodel.ServiceKindThirdParty.String() {
+		newAppService, err = conversion.InitAppService(m.dbmanager, body.ServiceID, nil,
+			"ServiceSource", "TenantServiceBase", "TenantServiceRegist")
+	} else {
+		newAppService, err = conversion.InitAppService(m.dbmanager, body.ServiceID, nil)
+	}
 	if err != nil {
 		logrus.Errorf("Application init create failure:%s", err.Error())
 		logger.Error("Application init create failure", controller.GetCallbackLoggerOption())
@@ -342,12 +372,60 @@ func (m *Manager) applyRuleExec(task *model.Task) error {
 		return fmt.Errorf("Application init create failure")
 	}
 	newAppService.Logger = logger
-	newAppService.SetDelIngsSecrets(oldAppService)
+	newAppService.SetDeletedResources(oldAppService)
 	// update k8s resources
 	err = m.controllerManager.StartController(controller.TypeApplyRuleController, *newAppService)
 	if err != nil {
 		logrus.Errorf("Application apply rule controller failure:%s", err.Error())
 		return fmt.Errorf("Application apply rule controller failure:%s", err.Error())
+	}
+
+	if svc.Kind == dbmodel.ServiceKindThirdParty.String() && strings.HasPrefix(body.Action, "port") {
+		if oldAppService == nil {
+			m.store.RegistAppService(newAppService)
+		}
+		if body.Action == "port-open" {
+			m.startCh.In() <- &v1.Event{
+				Type: v1.StartEvent,
+				Sid:  body.ServiceID,
+				Port: body.Port,
+				IsInner: body.IsInner,
+			}
+		}
+		if body.Action == "port-close" {
+			if !db.GetManager().TenantServicesPortDao().HasOpenPort(body.ServiceID) {
+				m.startCh.In() <- &v1.Event{
+					Type: v1.StopEvent,
+					Sid:  body.ServiceID,
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+//applyPluginConfig apply service plugin config
+func (m *Manager) applyPluginConfig(task *model.Task) error {
+	body, ok := task.Body.(*model.ApplyPluginConfigTaskBody)
+	if !ok {
+		logrus.Errorf("Can't convert %s to *model.ApplyPluginConfigTaskBody", reflect.TypeOf(task.Body))
+		return fmt.Errorf("Can't convert %s to *model.ApplyPluginConfigTaskBody", reflect.TypeOf(task.Body))
+	}
+	oldAppService := m.store.GetAppService(body.ServiceID)
+	if oldAppService == nil || oldAppService.IsClosed() {
+		logrus.Debugf("service is closed,no need handle")
+		return nil
+	}
+	newApp, err := conversion.InitAppService(m.dbmanager, body.ServiceID, nil, "ServiceSource", "TenantServiceBase", "TenantServicePlugin")
+	if err != nil {
+		logrus.Errorf("Application apply plugin config controller failure:%s", err.Error())
+		return err
+	}
+	err = m.controllerManager.StartController(controller.TypeApplyConfigController, *newApp)
+	if err != nil {
+		logrus.Errorf("Application apply plugin config controller failure:%s", err.Error())
+		return fmt.Errorf("Application apply plugin config controller failure:%s", err.Error())
 	}
 	return nil
 }

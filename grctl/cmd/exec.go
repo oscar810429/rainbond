@@ -17,20 +17,22 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 package cmd
+
 import (
-	"github.com/urfave/cli"
-	"github.com/Sirupsen/logrus"
 	"os"
 	"os/exec"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"github.com/goodrain/rainbond/grctl/clients"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/goodrain/rainbond/grctl/clients"
+	"github.com/urfave/cli"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+//NewCmdExec exec cmd
 func NewCmdExec() cli.Command {
-	c:=cli.Command{
+	c := cli.Command{
 		Name:  "exec",
-		Usage: "进入容器方法。grctl exec POD_NAME COMMAND ",
+		Usage: "open pod ttl console。grctl exec POD_NAME COMMAND ",
 		Action: func(c *cli.Context) error {
 			Common(c)
 			return execContainer(c)
@@ -43,15 +45,13 @@ func NewCmdExec() cli.Command {
 func execContainer(c *cli.Context) error {
 	//podID := c.Args().Get(1)
 	args := c.Args().Tail()
-	tenantID:=""
-
+	tenantID := ""
 
 	podName := c.Args().First()
 	//args := c.Args().Tail()
 	//tenantID, err := clients.FindNamespaceByPod(podID)
 
 	//clients.K8SClient.Core().Namespaces().Get("",metav1.GetOptions{}).
-
 
 	kubeCtrl, err := exec.LookPath("kubectl")
 	if err != nil {
@@ -61,18 +61,18 @@ func execContainer(c *cli.Context) error {
 	if len(args) == 0 {
 		args = []string{"bash"}
 	}
-	pl,err:=clients.K8SClient.Core().Pods("").List(metav1.ListOptions{})
+	pl, err := clients.K8SClient.Core().Pods("").List(metav1.ListOptions{})
 	if err != nil {
 		logrus.Errorf("error get pods by nil namespace")
 		return err
 	}
-	for _,v:=range pl.Items {
+	for _, v := range pl.Items {
 		if v.Name == podName {
-			tenantID=v.Namespace
+			tenantID = v.Namespace
 			break
 		}
 	}
-	defaultArgs := []string{kubeCtrl, "exec", "-it", "--namespace=" + tenantID,podName}
+	defaultArgs := []string{kubeCtrl, "exec", "-it", "--namespace=" + tenantID, podName}
 	args = append(defaultArgs, args...)
 	//logrus.Info(args)
 	cmd := exec.Cmd{
@@ -89,4 +89,3 @@ func execContainer(c *cli.Context) error {
 	}
 	return nil
 }
-

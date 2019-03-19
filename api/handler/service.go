@@ -19,37 +19,32 @@
 package handler
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/goodrain/rainbond/cmd/api/option"
-	"github.com/goodrain/rainbond/worker/server/pb"
-
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/etcd/clientv3"
+	api_model "github.com/goodrain/rainbond/api/model"
+	"github.com/goodrain/rainbond/api/proxy"
+	"github.com/goodrain/rainbond/api/util"
+	"github.com/goodrain/rainbond/cmd/api/option"
 	"github.com/goodrain/rainbond/db"
 	core_model "github.com/goodrain/rainbond/db/model"
-	"github.com/goodrain/rainbond/event"
-	"github.com/twinj/uuid"
-
-	"github.com/jinzhu/gorm"
-
-	"github.com/pquerna/ffjson/ffjson"
-
-	api_model "github.com/goodrain/rainbond/api/model"
-	"github.com/goodrain/rainbond/api/util"
 	dbmodel "github.com/goodrain/rainbond/db/model"
+	"github.com/goodrain/rainbond/event"
 	gclient "github.com/goodrain/rainbond/mq/client"
 	core_util "github.com/goodrain/rainbond/util"
 	"github.com/goodrain/rainbond/worker/client"
 	"github.com/goodrain/rainbond/worker/discover/model"
-
-	"encoding/json"
-	"net/http"
-
-	"github.com/Sirupsen/logrus"
+	"github.com/goodrain/rainbond/worker/server/pb"
+	"github.com/jinzhu/gorm"
+	"github.com/pquerna/ffjson/ffjson"
+	"github.com/twinj/uuid"
 )
 
 //ServiceAction service act
@@ -58,6 +53,14 @@ type ServiceAction struct {
 	EtcdCli   *clientv3.Client
 	statusCli *client.AppRuntimeSyncClient
 	conf      option.Config
+}
+
+type dCfg struct {
+	Type     string   `json:"type"`
+	Servers  []string `json:"servers"`
+	Key      string   `json:"key"`
+	Username string   `json:"username"`
+	Password string   `json:"password"`
 }
 
 //CreateManager create Manger
@@ -429,13 +432,14 @@ func (s *ServiceAction) ServiceUpgrade(ru *model.RollingUpgradeTaskBody) error {
 		return err
 	}
 	if version.FinalStatus != "success" {
-		return fmt.Errorf("deploy version is not build success,do not upgrade")
-	}
-	services.DeployVersion = ru.NewDeployVersion
-	err = db.GetManager().TenantServiceDao().UpdateModel(services)
-	if err != nil {
-		logrus.Errorf("update service deploy version error. %v", err)
-		return fmt.Errorf("horizontal service faliure:%s", err.Error())
+		logrus.Warnf("deploy version %s is not build success,can not change deploy version in this upgrade event", ru.NewDeployVersion)
+	} else {
+		services.DeployVersion = ru.NewDeployVersion
+		err = db.GetManager().TenantServiceDao().UpdateModel(services)
+		if err != nil {
+			logrus.Errorf("update service deploy version error. %v", err)
+			return fmt.Errorf("horizontal service faliure:%s", err.Error())
+		}
 	}
 	err = s.MQClient.SendBuilderTopic(gclient.TaskStruct{
 		TaskBody: ru,
@@ -514,32 +518,52 @@ func (s *ServiceAction) ServiceCreate(sc *api_model.ServiceStruct) error {
 		}
 
 		for _, volumn := range volumns {
-			volumn.ServiceID = ts.ServiceID
+			v := dbmodel.TenantServiceVolume{
+				ServiceID:  ts.ServiceID,
+				Category:   volumn.Category,
+				VolumeType: volumn.VolumeType,
+				VolumeName: volumn.VolumeName,
+				HostPath:   volumn.HostPath,
+				VolumePath: volumn.VolumePath,
+				IsReadOnly: volumn.IsReadOnly,
+			}
+			v.ServiceID = ts.ServiceID
 			if volumn.VolumeType == "" {
-				volumn.VolumeType = dbmodel.ShareFileVolumeType.String()
+				v.VolumeType = dbmodel.ShareFileVolumeType.String()
 			}
 			if volumn.HostPath == "" {
 				//step 1 设置主机目录
 				switch volumn.VolumeType {
 				//共享文件存储
 				case dbmodel.ShareFileVolumeType.String():
-					volumn.HostPath = fmt.Sprintf("%s/tenant/%s/service/%s%s", sharePath, sc.TenantID, volumn.ServiceID, volumn.VolumePath)
+					v.HostPath = fmt.Sprintf("%s/tenant/%s/service/%s%s", sharePath, sc.TenantID, ts.ServiceID, volumn.VolumePath)
 				//本地文件存储
 				case dbmodel.LocalVolumeType.String():
 					if sc.ExtendMethod != "state" {
 						tx.Rollback()
 						return util.CreateAPIHandleError(400, fmt.Errorf("应用类型不为有状态应用.不支持本地存储"))
 					}
-					volumn.HostPath = fmt.Sprintf("%s/tenant/%s/service/%s%s", localPath, sc.TenantID, volumn.ServiceID, volumn.VolumePath)
+					v.HostPath = fmt.Sprintf("%s/tenant/%s/service/%s%s", localPath, sc.TenantID, ts.ServiceID, volumn.VolumePath)
 				}
 			}
 			if volumn.VolumeName == "" {
-				volumn.VolumeName = uuid.NewV4().String()
+				v.VolumeName = uuid.NewV4().String()
 			}
-			if err := db.GetManager().TenantServiceVolumeDaoTransactions(tx).AddModel(&volumn); err != nil {
+			if err := db.GetManager().TenantServiceVolumeDaoTransactions(tx).AddModel(&v); err != nil {
 				logrus.Errorf("add volumn %v error, %v", volumn.HostPath, err)
 				tx.Rollback()
 				return err
+			}
+			if volumn.FileContent != "" {
+				cf := &dbmodel.TenantServiceConfigFile{
+					ServiceID:   sc.ServiceID,
+					VolumeName:  volumn.VolumeName,
+					FileContent: volumn.FileContent,
+				}
+				if err := db.GetManager().TenantServiceConfigFileDaoTransactions(tx).AddModel(cf); err != nil {
+					tx.Rollback()
+					return util.CreateAPIHandleErrorFromDBError("error creating config file", err)
+				}
 			}
 		}
 	}
@@ -580,6 +604,64 @@ func (s *ServiceAction) ServiceCreate(sc *api_model.ServiceStruct) error {
 		tx.Rollback()
 		return err
 	}
+	// sc.Endpoints can't be nil
+	// sc.Endpoints.Discovery or sc.Endpoints.Static can't be nil
+	if sc.Kind == dbmodel.ServiceKindThirdParty.String() { // TODO: validate request data
+		if config := strings.Replace(sc.Endpoints.Discovery, " ", "", -1); config != "" {
+			var cfg dCfg
+			err := json.Unmarshal([]byte(config), &cfg)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			c := &dbmodel.ThirdPartySvcDiscoveryCfg{
+				ServiceID: sc.ServiceID,
+				Type:      cfg.Type,
+				Servers:   strings.Join(cfg.Servers, ","),
+				Key:       cfg.Key,
+				Username:  cfg.Username,
+				Password:  cfg.Password,
+			}
+			if err := db.GetManager().ThirdPartySvcDiscoveryCfgDaoTransactions(tx).
+				AddModel(c); err != nil {
+				logrus.Errorf("error saving discover center configuration: %v", err)
+				tx.Rollback()
+				return err
+			}
+		} else if static := strings.Replace(sc.Endpoints.Static, " ", "", -1); static != "" {
+			var obj []string
+			err := json.Unmarshal([]byte(static), &obj)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			trueValue := true
+			for _, o := range obj {
+				ep := &dbmodel.Endpoint{
+					ServiceID: sc.ServiceID,
+					UUID:      core_util.NewUUID(),
+					IsOnline:  &trueValue,
+				}
+				s := strings.Split(o, ":")
+				ep.IP = s[0]
+				if len(s) == 2 {
+					port, err := strconv.Atoi(s[1])
+					if err != nil {
+						logrus.Warningf("string:%s, error parsing string to int", s[1])
+						continue
+					} else {
+						ep.Port = port
+					}
+				}
+				if err := db.GetManager().EndpointsDaoTransactions(tx).AddModel(ep); err != nil {
+					tx.Rollback()
+					logrus.Errorf("error saving o endpoint: %v", err)
+					return err
+				}
+			}
+		}
+	}
+	// TODO: create default probe for third-party service.
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
 		return err
@@ -686,47 +768,88 @@ func (s *ServiceAction) GetPagedTenantRes(offset, len int) ([]*api_model.TenantR
 
 //GetTenantRes get pagedTenantServiceRes(s)
 func (s *ServiceAction) GetTenantRes(uuid string) (*api_model.TenantResource, error) {
+	tenant, err := db.GetManager().TenantDao().GetTenantByUUID(uuid)
+	if err != nil {
+		logrus.Errorf("get tenant %s info failure %v", uuid, err.Error())
+		return nil, err
+	}
 	services, err := db.GetManager().TenantServiceDao().GetServicesByTenantID(uuid)
 	if err != nil {
-		logrus.Errorf("get service by id error, %v, %v", services, err)
+		logrus.Errorf("get service by id error, %v, %v", services, err.Error())
 		return nil, err
 	}
 	var serviceIDs string
 	var AllocatedCPU, AllocatedMEM int
-	var serMap = make(map[string]*dbmodel.TenantServices, len(services))
 	for _, ser := range services {
 		if serviceIDs == "" {
 			serviceIDs += ser.ServiceID
 		} else {
 			serviceIDs += "," + ser.ServiceID
 		}
-		AllocatedCPU += ser.ContainerCPU
-		AllocatedMEM += ser.ContainerMemory
-		serMap[ser.ServiceID] = ser
+		AllocatedCPU += ser.ContainerCPU * ser.Replicas
+		AllocatedMEM += ser.ContainerMemory * ser.Replicas
 	}
-	status := s.statusCli.GetStatuss(serviceIDs)
-	var UsedCPU, UsedMEM int
-	for k, v := range status {
-		if !s.statusCli.IsClosedStatus(v) {
-			UsedCPU += serMap[k].ContainerCPU
-			UsedMEM += serMap[k].ContainerMemory
-		}
-	}
-	disks := s.statusCli.GetAppsDisk(serviceIDs)
+	tenantResUesd, _ := s.statusCli.GetTenantResource(uuid)
+	disks := GetServicesDisk(strings.Split(serviceIDs, ","), GetPrometheusProxy())
 	var value float64
 	for _, v := range disks {
 		value += v
 	}
 	var res api_model.TenantResource
 	res.UUID = uuid
-	res.Name = ""
-	res.EID = ""
+	res.Name = tenant.Name
+	res.EID = tenant.EID
 	res.AllocatedCPU = AllocatedCPU
 	res.AllocatedMEM = AllocatedMEM
-	res.UsedCPU = UsedCPU
-	res.UsedMEM = UsedMEM
+	res.UsedCPU = int(tenantResUesd.CpuRequest)
+	res.UsedMEM = int(tenantResUesd.MemoryRequest)
 	res.UsedDisk = value
 	return &res, nil
+}
+
+//GetServicesDisk get service disk
+func GetServicesDisk(ids []string, p proxy.Proxy) map[string]float64 {
+	result := make(map[string]float64)
+	//query disk used in prometheus
+	query := fmt.Sprintf(`max(app_resource_appfs{service_id=~"%s"}) by(service_id)`, strings.Join(ids, "|"))
+	query = strings.Replace(query, " ", "%20", -1)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:9999/api/v1/query?query=%s", query), nil)
+	if err != nil {
+		logrus.Error("create request prometheus api error ", err.Error())
+		return result
+	}
+	presult, err := p.Do(req)
+	if err != nil {
+		logrus.Error("do pproxy request prometheus api error ", err.Error())
+		return result
+	}
+
+	if presult.Body != nil {
+		defer presult.Body.Close()
+		if presult.StatusCode != 200 {
+			return result
+		}
+		var qres QueryResult
+		err = json.NewDecoder(presult.Body).Decode(&qres)
+		if err == nil {
+			for _, re := range qres.Data.Result {
+				var serviceID string
+				if tid, ok := re["metric"].(map[string]interface{}); ok {
+					serviceID = tid["service_id"].(string)
+				}
+				if re, ok := (re["value"]).([]interface{}); ok && len(re) == 2 {
+					i, err := strconv.ParseFloat(re[1].(string), 10)
+					if err != nil {
+						logrus.Warningf("error convert interface(%v) to float64", re[1].(string))
+						continue
+					}
+					result[serviceID] = i
+				}
+			}
+		}
+	}
+
+	return result
 }
 
 //CodeCheck code check
@@ -1213,7 +1336,7 @@ func (s *ServiceAction) VolumnVar(tsv *dbmodel.TenantServiceVolume, tenantID, fi
 		}
 		if fileContent != "" {
 			cf := &dbmodel.TenantServiceConfigFile{
-				UUID:        uuid.NewV4().String(),
+				ServiceID:   tsv.ServiceID,
 				VolumeName:  tsv.VolumeName,
 				FileContent: fileContent,
 			}
@@ -1237,13 +1360,12 @@ func (s *ServiceAction) VolumnVar(tsv *dbmodel.TenantServiceVolume, tenantID, fi
 				return util.CreateAPIHandleErrorFromDBError("delete volume", err)
 			}
 		} else {
-			if err := db.GetManager().TenantServiceVolumeDaoTransactions(tx).DeleteByServiceIDAndVolumePath(tsv.ServiceID, tsv.VolumePath);
-				err != nil && err.Error() != gorm.ErrRecordNotFound.Error() {
+			if err := db.GetManager().TenantServiceVolumeDaoTransactions(tx).DeleteByServiceIDAndVolumePath(tsv.ServiceID, tsv.VolumePath); err != nil && err.Error() != gorm.ErrRecordNotFound.Error() {
 				tx.Rollback()
 				return util.CreateAPIHandleErrorFromDBError("delete volume", err)
 			}
 		}
-		if err := db.GetManager().TenantServiceConfigFileDaoTransactions(tx).DelByVolumeID(tsv.VolumeName); err != nil {
+		if err := db.GetManager().TenantServiceConfigFileDaoTransactions(tx).DelByVolumeID(tsv.ServiceID, tsv.VolumeName); err != nil {
 			tx.Rollback()
 			return util.CreateAPIHandleErrorFromDBError("error deleting config files", err)
 		}
@@ -1253,6 +1375,45 @@ func (s *ServiceAction) VolumnVar(tsv *dbmodel.TenantServiceVolume, tenantID, fi
 			return util.CreateAPIHandleErrorFromDBError("error ending transaction", err)
 		}
 	}
+	return nil
+}
+
+// UpdVolume updates service volume.
+func (s *ServiceAction) UpdVolume(sid string, req *api_model.UpdVolumeReq) error {
+	tx := db.GetManager().Begin()
+	switch req.VolumeType {
+	case "config-file":
+		if req.VolumePath != "" {
+			v, err := db.GetManager().TenantServiceVolumeDaoTransactions(tx).
+				GetVolumeByServiceIDAndName(sid, req.VolumeName)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			v.VolumePath = req.VolumePath
+			if err := db.GetManager().TenantServiceVolumeDaoTransactions(tx).UpdateModel(v); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+		if req.FileContent != "" {
+			configfile, err := db.GetManager().TenantServiceConfigFileDaoTransactions(tx).
+				GetByVolumeName(sid, req.VolumeName)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			configfile.FileContent = req.FileContent
+			if err := db.GetManager().TenantServiceConfigFileDaoTransactions(tx).UpdateModel(configfile); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	default:
+		tx.Rollback()
+		return fmt.Errorf("unsupported volume type")
+	}
+	tx.Commit()
 	return nil
 }
 
@@ -1332,19 +1493,16 @@ func (s *ServiceAction) ServiceProbe(tsp *dbmodel.TenantServiceProbe, action str
 
 //RollBack RollBack
 func (s *ServiceAction) RollBack(rs *api_model.RollbackStruct) error {
-	tx := db.GetManager().Begin()
-	service, err := db.GetManager().TenantServiceDaoTransactions(tx).GetServiceByID(rs.ServiceID)
+	service, err := db.GetManager().TenantServiceDao().GetServiceByID(rs.ServiceID)
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
+	oldDeployVersion := service.DeployVersion
 	if service.DeployVersion == rs.DeployVersion {
-		tx.Rollback()
 		return fmt.Errorf("current version is %v, don't need rollback", rs.DeployVersion)
 	}
 	service.DeployVersion = rs.DeployVersion
-	if err := db.GetManager().TenantServiceDaoTransactions(tx).UpdateModel(service); err != nil {
-		tx.Rollback()
+	if err := db.GetManager().TenantServiceDao().UpdateModel(service); err != nil {
 		return err
 	}
 	//发送重启消息到MQ
@@ -1355,10 +1513,11 @@ func (s *ServiceAction) RollBack(rs *api_model.RollbackStruct) error {
 		TaskType:  "rolling_upgrade",
 	}
 	if err := GetServiceManager().StartStopService(startStopStruct); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := tx.Commit().Error; err != nil {
+		// rollback
+		service.DeployVersion = oldDeployVersion
+		if err := db.GetManager().TenantServiceDao().UpdateModel(service); err != nil {
+			logrus.Warningf("error deploy version rollback: %v", err)
+		}
 		return err
 	}
 	return nil
@@ -1472,7 +1631,6 @@ func (s *ServiceAction) GetPods(serviceID string) ([]*K8sPodInfo, error) {
 		podsInfoList = append(podsInfoList, &podInfo)
 	}
 	containerMemInfo, _ := s.GetPodContainerMemory(podNames)
-	fmt.Println(containerMemInfo)
 	for _, c := range podsInfoList {
 		for k := range c.Container {
 			if info, exist := containerMemInfo[c.PodName][k]; exist {
@@ -1550,8 +1708,10 @@ func (s *ServiceAction) TransServieToDelete(serviceID string) error {
 		return err
 	}
 	status := s.statusCli.GetStatus(serviceID)
-	if !s.statusCli.IsClosedStatus(status) {
-		return fmt.Errorf("unclosed")
+	if service.Kind != dbmodel.ServiceKindThirdParty.String() {
+		if !s.statusCli.IsClosedStatus(status) {
+			return fmt.Errorf("unclosed")
+		}
 	}
 	tx := db.GetManager().Begin()
 	delService := service.ChangeDelete()
@@ -1560,119 +1720,30 @@ func (s *ServiceAction) TransServieToDelete(serviceID string) error {
 		tx.Rollback()
 		return err
 	}
-	if err := db.GetManager().TenantServiceDaoTransactions(tx).DeleteServiceByServiceID(serviceID); err != nil {
-		tx.Rollback()
-		return err
+	var deleteServicePropertyFunc = []func(serviceID string) error{
+		db.GetManager().TenantServiceDaoTransactions(tx).DeleteServiceByServiceID,
+		db.GetManager().TenantServiceMountRelationDaoTransactions(tx).DELTenantServiceMountRelationByServiceID,
+		db.GetManager().TenantServiceEnvVarDaoTransactions(tx).DELServiceEnvsByServiceID,
+		db.GetManager().TenantServicesPortDaoTransactions(tx).DELPortsByServiceID,
+		db.GetManager().TenantServiceRelationDaoTransactions(tx).DELRelationsByServiceID,
+		db.GetManager().TenantServiceLBMappingPortDaoTransactions(tx).DELServiceLBMappingPortByServiceID,
+		db.GetManager().TenantServiceVolumeDaoTransactions(tx).DeleteTenantServiceVolumesByServiceID,
+		db.GetManager().ServiceProbeDaoTransactions(tx).DELServiceProbesByServiceID,
+		db.GetManager().TenantServicePluginRelationDaoTransactions(tx).DeleteALLRelationByServiceID,
+		db.GetManager().TenantServicesStreamPluginPortDaoTransactions(tx).DeleteAllPluginMappingPortByServiceID,
+		db.GetManager().TenantPluginVersionENVDaoTransactions(tx).DeleteEnvByServiceID,
+		db.GetManager().TenantPluginVersionConfigDaoTransactions(tx).DeletePluginConfigByServiceID,
+		db.GetManager().TenantServiceLabelDaoTransactions(tx).DeleteLabelByServiceID,
+		db.GetManager().HTTPRuleDaoTransactions(tx).DeleteHTTPRuleByServiceID,
+		db.GetManager().TCPRuleDaoTransactions(tx).DeleteTCPRuleByServiceID,
 	}
-	//删除domain
-	//删除pause
-	//删除tenant_system_pause
-	//删除tenant_service_relation
-	if err := db.GetManager().TenantServiceMountRelationDaoTransactions(tx).DELTenantServiceMountRelationByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
+	for _, del := range deleteServicePropertyFunc {
+		if err := del(serviceID); err != nil {
+			if err.Error() != gorm.ErrRecordNotFound.Error() {
+				tx.Rollback()
+				return err
+			}
 		}
-	}
-	//删除tenant_service_evn_var
-	if err := db.GetManager().TenantServiceEnvVarDaoTransactions(tx).DELServiceEnvsByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	//删除tenant_services_port
-	if err := db.GetManager().TenantServicesPortDaoTransactions(tx).DELPortsByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	//删除tenant_service_mnt_relation
-	if err := db.GetManager().TenantServiceRelationDaoTransactions(tx).DELRelationsByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	//删除tenant_lb_mapping_port
-	if err := db.GetManager().TenantServiceLBMappingPortDaoTransactions(tx).DELServiceLBMappingPortByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	//删除tenant_service_volume
-	if err := db.GetManager().TenantServiceVolumeDaoTransactions(tx).DeleteTenantServiceVolumesByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	//删除service_probe
-	if err := db.GetManager().ServiceProbeDaoTransactions(tx).DELServiceProbesByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	//TODO: 如果有关联过插件，需要删除该插件相关配置及资源
-	if err := db.GetManager().TenantServicePluginRelationDaoTransactions(tx).DeleteALLRelationByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	if err := db.GetManager().TenantServicesStreamPluginPortDaoTransactions(tx).DeleteAllPluginMappingPortByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	if err := db.GetManager().TenantPluginVersionENVDaoTransactions(tx).DeleteEnvByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	if err := db.GetManager().TenantServiceLabelDaoTransactions(tx).DeleteLabelByServiceID(serviceID); err != nil {
-		if err.Error() != gorm.ErrRecordNotFound.Error() {
-			tx.Rollback()
-			return err
-		}
-	}
-	// delete gateway related resources
-	httpRules, err := db.GetManager().HttpRuleDaoTransactions(tx).ListByServiceID(serviceID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	for _, r := range httpRules {
-		if err := db.GetManager().HttpRuleDaoTransactions(tx).DeleteHttpRuleByID(r.UUID); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-	tcpRules, err := db.GetManager().TcpRuleDaoTransactions(tx).ListByServiceID(serviceID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	for _, r := range tcpRules {
-		if err := db.GetManager().TcpRuleDaoTransactions(tx).DeleteTcpRule(r); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-	//删除plugin etcd资源
-	prefixK := fmt.Sprintf("/resources/define/%s/%s", service.TenantID, service.ServiceAlias)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	_, err = s.EtcdCli.Delete(ctx, prefixK, clientv3.WithPrefix())
-	if err != nil {
-		logrus.Errorf("delete prefix %s from etcd error, %v", prefixK, err)
-		tx.Rollback()
-		return err
 	}
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
@@ -1688,6 +1759,25 @@ func (s *ServiceAction) GetServiceDeployInfo(tenantID, serviceID string) (*pb.De
 		return nil, util.CreateAPIHandleError(500, err)
 	}
 	return info, nil
+}
+
+// ListVersionInfo lists version info
+func (s *ServiceAction) ListVersionInfo(serviceID string) (*api_model.BuildListRespVO, error) {
+	versionInfos, err := db.GetManager().VersionInfoDao().GetAllVersionByServiceID(serviceID)
+	if err != nil && err != gorm.ErrRecordNotFound {
+		logrus.Errorf("error getting all version by service id: %v", err)
+		return nil, fmt.Errorf("error getting all version by service id: %v", err)
+	}
+	svc, err := db.GetManager().TenantServiceDao().GetServiceByID(serviceID)
+	if err != nil {
+		logrus.Errorf("error getting service by uuid: %v", err)
+		return nil, fmt.Errorf("error getting service by uuid: %v", err)
+	}
+	result := &api_model.BuildListRespVO{
+		DeployVersion: svc.DeployVersion,
+		List:          versionInfos,
+	}
+	return result, nil
 }
 
 //TransStatus trans service status

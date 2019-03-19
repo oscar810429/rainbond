@@ -21,14 +21,11 @@ package client
 import (
 	"context"
 
-	"github.com/goodrain/rainbond/worker/appm/types/v1"
-
-	"github.com/coreos/etcd/clientv3"
-
-	etcdnaming "github.com/coreos/etcd/clientv3/naming"
-
 	"github.com/Sirupsen/logrus"
-
+	"github.com/coreos/etcd/clientv3"
+	etcdnaming "github.com/coreos/etcd/clientv3/naming"
+	"github.com/goodrain/rainbond/db/model"
+	v1 "github.com/goodrain/rainbond/worker/appm/types/v1"
 	"github.com/goodrain/rainbond/worker/server/pb"
 	"google.golang.org/grpc"
 )
@@ -83,32 +80,6 @@ func (a *AppRuntimeSyncClient) GetStatus(serviceID string) string {
 		return v1.UNKNOW
 	}
 	return status.Status[serviceID]
-}
-
-//GetAllAppDisk get all service disk
-func (a *AppRuntimeSyncClient) GetAllAppDisk() map[string]float64 {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	status, err := a.AppRuntimeSyncClient.GetAppDisk(ctx, &pb.ServicesRequest{
-		ServiceIds: "",
-	})
-	if err != nil {
-		return nil
-	}
-	return status.Disks
-}
-
-//GetAppsDisk get define service disk
-func (a *AppRuntimeSyncClient) GetAppsDisk(serviceIDs string) map[string]float64 {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	status, err := a.AppRuntimeSyncClient.GetAppDisk(ctx, &pb.ServicesRequest{
-		ServiceIds: serviceIDs,
-	})
-	if err != nil {
-		return nil
-	}
-	return status.Disks
 }
 
 //GetStatuss get multiple app status
@@ -169,5 +140,61 @@ func (a *AppRuntimeSyncClient) GetServiceDeployInfo(serviceID string) (*pb.Deplo
 
 //IsClosedStatus  check status
 func (a *AppRuntimeSyncClient) IsClosedStatus(curStatus string) bool {
-	return curStatus == v1.BUILDEFAILURE || curStatus == v1.CLOSED || curStatus == v1.UNDEPLOY || curStatus == v1.BUILDING || curStatus == v1.UNKNOW
+	return curStatus == "" || curStatus == v1.BUILDEFAILURE || curStatus == v1.CLOSED || curStatus == v1.UNDEPLOY || curStatus == v1.BUILDING || curStatus == v1.UNKNOW
+}
+
+//GetTenantResource get tenant resource
+func (a *AppRuntimeSyncClient) GetTenantResource(tenantID string) (*pb.TenantResource, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return a.AppRuntimeSyncClient.GetTenantResource(ctx, &pb.TenantRequest{TenantId: tenantID})
+}
+
+// ListThirdPartyEndpoints -
+func (a *AppRuntimeSyncClient) ListThirdPartyEndpoints(sid string) (*pb.ThirdPartyEndpoints, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp, err := a.AppRuntimeSyncClient.ListThirdPartyEndpoints(ctx, &pb.ServiceRequest{
+		ServiceId: sid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// AddThirdPartyEndpoint -
+func (a *AppRuntimeSyncClient) AddThirdPartyEndpoint(req *model.Endpoint) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, _ = a.AppRuntimeSyncClient.AddThirdPartyEndpoint(ctx, &pb.AddThirdPartyEndpointsReq{
+		Uuid:     req.UUID,
+		Sid:      req.ServiceID,
+		Ip:       req.IP,
+		Port:     int32(req.Port),
+		IsOnline: *req.IsOnline,
+	})
+}
+
+// UpdThirdPartyEndpoint -
+func (a *AppRuntimeSyncClient) UpdThirdPartyEndpoint(req *model.Endpoint) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, _ = a.AppRuntimeSyncClient.UpdThirdPartyEndpoint(ctx, &pb.UpdThirdPartyEndpointsReq{
+		Uuid:     req.UUID,
+		Sid:      req.ServiceID,
+		Ip:       req.IP,
+		Port:     int32(req.Port),
+		IsOnline: *req.IsOnline,
+	})
+}
+
+// DelThirdPartyEndpoint -
+func (a *AppRuntimeSyncClient) DelThirdPartyEndpoint(uuid, sid string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, _ = a.AppRuntimeSyncClient.DelThirdPartyEndpoint(ctx, &pb.DelThirdPartyEndpointsReq{
+		Uuid: uuid,
+		Sid:  sid,
+	})
 }

@@ -49,9 +49,9 @@ func NewCmdService() cli.Command {
 				Name: "list",
 				Flags: []cli.Flag{
 					cli.StringFlag{
-						Name:  "tenantAlias,t",
-						Value: "",
-						Usage: "Specify the tenant alias",
+						Name:     "tenantAlias,t",
+						Value:    "",
+						Usage:    "Specify the tenant alias",
 						FilePath: GetTenantNamePath(),
 					},
 				},
@@ -66,9 +66,9 @@ func NewCmdService() cli.Command {
 				Name: "get",
 				Flags: []cli.Flag{
 					cli.StringFlag{
-						Name:  "tenantAlias,t",
-						Value: "",
-						Usage: "Specify the tenant alias",
+						Name:     "tenantAlias,t",
+						Value:    "",
+						Usage:    "Specify the tenant alias",
 						FilePath: GetTenantNamePath(),
 					},
 				},
@@ -87,9 +87,9 @@ func NewCmdService() cli.Command {
 						Usage: "Blocks the output operation log",
 					},
 					cli.StringFlag{
-						Name:  "tenantAlias,t",
-						Value: "",
-						Usage: "Specify the tenant alias",
+						Name:     "tenantAlias,t",
+						Value:    "",
+						Usage:    "Specify the tenant alias",
 						FilePath: GetTenantNamePath(),
 					},
 					cli.StringFlag{
@@ -111,9 +111,9 @@ func NewCmdService() cli.Command {
 						Usage: "Blocks the output operation log",
 					},
 					cli.StringFlag{
-						Name:  "tenantAlias,t",
-						Value: "",
-						Usage: "Specify the tenant alias",
+						Name:     "tenantAlias,t",
+						Value:    "",
+						Usage:    "Specify the tenant alias",
 						FilePath: GetTenantNamePath(),
 					},
 					cli.StringFlag{
@@ -134,9 +134,9 @@ func NewCmdService() cli.Command {
 						Usage: "Blocks the output operation log",
 					},
 					cli.StringFlag{
-						Name:  "tenantAlias,t",
-						Value: "",
-						Usage: "Specify the tenant short id",
+						Name:     "tenantAlias,t",
+						Value:    "",
+						Usage:    "Specify the tenant short id",
 						FilePath: GetTenantNamePath(),
 					},
 					cli.StringFlag{
@@ -433,21 +433,41 @@ func showServiceDeployInfo(c *cli.Context) error {
 			if pod.Spec.Volumes != nil && len(pod.Spec.Volumes) > 0 {
 				value := ""
 				for _, v := range pod.Spec.Volumes {
+					valueline := ""
 					if v.HostPath != nil {
-						value += v.HostPath.Path
-						for _, vc := range pod.Spec.Containers {
-							m := vc.VolumeMounts
-							for _, v2 := range m {
-								if v2.Name == v.Name {
-									value += ":" + string(v2.MountPath)
+						valueline += v.HostPath.Path
+					}
+					if v.PersistentVolumeClaim != nil {
+						claimName := v.PersistentVolumeClaim.ClaimName
+						pvc, _ := clients.K8SClient.Core().PersistentVolumeClaims(tenantID).Get(claimName, metav1.GetOptions{})
+						if pvc != nil {
+							pvn := pvc.Spec.VolumeName
+							pv, _ := clients.K8SClient.Core().PersistentVolumes().Get(pvn, metav1.GetOptions{})
+							if pv != nil {
+								if hostPath := pv.Spec.HostPath; hostPath != nil {
+									valueline += hostPath.Path
 								}
 							}
 						}
-						value += "\n"
 					}
+					//if not pvc, do not show
+					if valueline == "" {
+						continue
+					}
+					value += valueline
+				con:
+					for _, vc := range pod.Spec.Containers {
+						m := vc.VolumeMounts
+						for _, v2 := range m {
+							if v2.Name == v.Name {
+								value += ":" + string(v2.MountPath)
+								break con
+							}
+						}
+					}
+					value += "\n"
 				}
 				table.AddRow("PodVolumePath:", value)
-
 			}
 			if pod.Status.StartTime != nil {
 				table.AddRow("PodStratTime:", pod.Status.StartTime.Format(time.RFC3339))

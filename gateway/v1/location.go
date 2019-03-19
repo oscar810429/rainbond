@@ -18,6 +18,11 @@
 
 package v1
 
+import (
+	"github.com/goodrain/rainbond/gateway/annotations/proxy"
+	"github.com/goodrain/rainbond/gateway/annotations/rewrite"
+)
+
 // ConditionType condition type
 type ConditionType string
 
@@ -33,7 +38,14 @@ var DefaultType ConditionType = "default"
 // Location -
 type Location struct {
 	Path          string
-	NameCondition map[string]*Condition  // papping between backend name and condition
+	NameCondition map[string]*Condition // papping between backend name and condition
+	// Rewrite describes the redirection this location.
+	// +optional
+	Rewrite rewrite.Config `json:"rewrite,omitempty"`
+	// Proxy contains information about timeouts and buffer sizes
+	// to be used in connections against endpoints
+	// +optional
+	Proxy proxy.Config `json:"proxy,omitempty"`
 }
 
 // Condition is the condition that the traffic can reach the specified backend
@@ -82,7 +94,7 @@ func (c *Condition) Equals(cc *Condition) bool {
 		return false
 	}
 	for k, v := range c.Value {
-		if vv, ok := cc.Value[k]; !ok || v != vv{
+		if vv, ok := cc.Value[k]; !ok || v != vv {
 			return false
 		}
 	}

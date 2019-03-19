@@ -20,6 +20,7 @@ package option
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/goodrain/rainbond/util"
@@ -32,6 +33,7 @@ import (
 type GWServer struct {
 	Config
 	LogLevel string
+	Debug    bool
 }
 
 // NewGWServer creates a new option.GWServer
@@ -76,6 +78,9 @@ type Config struct {
 	GrMeIP             string
 	EnableRepoGrMe     bool
 	RepoGrMeIP         string
+	NodeName           string
+	HostIP             string
+	EnableInterface    []string
 }
 
 // ListenPorts describe the ports required to run the gateway controller
@@ -109,6 +114,8 @@ func (g *GWServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&g.HealthPath, "health-path", "/healthz", "absolute path to the kubeconfig file")
 	fs.DurationVar(&g.HealthCheckTimeout, "health-check-timeout", 10, `Time limit, in seconds, for a probe to health-check-path to succeed.`)
 	fs.IntVar(&g.ListenPorts.Health, "healthz-port", 10254, `Port to use for the healthz endpoint.`)
+	fs.IntVar(&g.ListenPorts.HTTP, "service-http-port", 80, `Port to use for the http service rule`)
+	fs.IntVar(&g.ListenPorts.HTTPS, "service-https-port", 443, `Port to use for the https service rule`)
 	fs.BoolVar(&g.EnableMetrics, "enable-metrics", true, "Enables the collection of rbd-gateway metrics")
 	// rainbond endpoints
 	fs.BoolVar(&g.EnableRbdEndpoints, "enable-rbd-endpoints", true, "switch of Rainbond endpoints")
@@ -123,6 +130,10 @@ func (g *GWServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&g.GrMeIP, "grme-ip", "0.0.0.0", "ip address bound by goodrain.me")
 	fs.BoolVar(&g.EnableRepoGrMe, "enable-repo-grme", true, "enable load balancing of repo.goodrain.me")
 	fs.StringVar(&g.RepoGrMeIP, "repo-grme-ip", "0.0.0.0", "ip address bound by repo.goodrain.me")
+	fs.StringVar(&g.NodeName, "node-name", "", "this gateway node host name")
+	fs.StringVar(&g.HostIP, "node-ip", "", "this gateway node ip")
+	fs.BoolVar(&g.Debug, "debug", false, "enable pprof debug")
+	fs.StringArrayVar(&g.EnableInterface, "enable-interface", nil, "The network interface name that support listening and managing by gateway")
 }
 
 // SetLog sets log
@@ -142,6 +153,17 @@ func (g *GWServer) CheckConfig() error {
 	}
 	if exist, _ := util.FileExists(g.K8SConfPath); !exist {
 		return fmt.Errorf("kube config file %s not exist", g.K8SConfPath)
+	}
+	if g.NodeName == "" {
+		g.NodeName, _ = os.Hostname()
+	}
+	if g.HostIP == "" {
+		ip, err := util.LocalIP()
+		if err != nil {
+			logrus.Errorf("get ip failed,details %s", err.Error())
+			return fmt.Errorf("get host ip failure %s", err.Error())
+		}
+		g.HostIP = ip.String()
 	}
 	return nil
 }

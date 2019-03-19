@@ -21,30 +21,30 @@ package store
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/jinzhu/gorm"
-
-	"github.com/goodrain/rainbond/db/model"
-
-	"k8s.io/apimachinery/pkg/api/errors"
-
-	"github.com/goodrain/rainbond/cmd/worker/option"
-
 	"github.com/Sirupsen/logrus"
-
+	"github.com/eapache/channels"
+	"github.com/goodrain/rainbond/cmd/worker/option"
 	"github.com/goodrain/rainbond/db"
+	"github.com/goodrain/rainbond/db/model"
 	"github.com/goodrain/rainbond/worker/appm/conversion"
-
+	"github.com/goodrain/rainbond/worker/appm/f"
 	"github.com/goodrain/rainbond/worker/appm/types/v1"
-
+	"github.com/jinzhu/gorm"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	listcorev1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 //Storer app runtime store interface
@@ -57,14 +57,36 @@ type Storer interface {
 	GetAllAppServices() []*v1.AppService
 	GetAppServiceStatus(serviceID string) string
 	GetAppServicesStatus(serviceIDs []string) map[string]string
+	GetTenantResource(tenantID string) *v1.TenantResource
+	GetTenantRunningApp(tenantID string) []*v1.AppService
 	GetNeedBillingStatus(serviceIDs []string) map[string]string
 	OnDelete(obj interface{})
 	GetPodLister() listcorev1.PodLister
 }
 
+// EventType type of event associated with an informer
+type EventType string
+
+const (
+	// CreateEvent event associated with new objects in an informer
+	CreateEvent EventType = "CREATE"
+	// UpdateEvent event associated with an object update in an informer
+	UpdateEvent EventType = "UPDATE"
+	// DeleteEvent event associated when an object is removed from an informer
+	DeleteEvent EventType = "DELETE"
+)
+
+// Event holds the context of an event.
+type Event struct {
+	Type EventType
+	Obj  interface{}
+	Old  interface{}
+}
+
 //appRuntimeStore app runtime store
 //cache all kubernetes object and appservice
 type appRuntimeStore struct {
+	clientset   *kubernetes.Clientset
 	ctx         context.Context
 	cancel      context.CancelFunc
 	informers   *Informer
@@ -72,14 +94,21 @@ type appRuntimeStore struct {
 	appServices sync.Map
 	appCount    int32
 	dbmanager   db.Manager
-	stopch      chan struct{}
 	conf        option.Config
+
+	startCh *channels.RingChannel
+	stopch  chan struct{}
 }
 
 //NewStore new app runtime store
-func NewStore(dbmanager db.Manager, conf option.Config) Storer {
+func NewStore(clientset *kubernetes.Clientset,
+	dbmanager db.Manager,
+	conf option.Config,
+	startCh *channels.RingChannel,
+	probeCh *channels.RingChannel) Storer {
 	ctx, cancel := context.WithCancel(context.Background())
 	store := &appRuntimeStore{
+		clientset:   clientset,
 		ctx:         ctx,
 		cancel:      cancel,
 		informers:   &Informer{},
@@ -87,6 +116,7 @@ func NewStore(dbmanager db.Manager, conf option.Config) Storer {
 		appServices: sync.Map{},
 		conf:        conf,
 		dbmanager:   dbmanager,
+		startCh:     startCh,
 	}
 	// create informers factory, enable and assign required informers
 	infFactory := informers.NewFilteredSharedInformerFactory(conf.KubeClient, time.Second, corev1.NamespaceAll,
@@ -116,6 +146,89 @@ func NewStore(dbmanager db.Manager, conf option.Config) Storer {
 
 	store.informers.ReplicaSet = infFactory.Apps().V1().ReplicaSets().Informer()
 
+	store.informers.Endpoints = infFactory.Core().V1().Endpoints().Informer()
+	store.listers.Endpoints = infFactory.Core().V1().Endpoints().Lister()
+
+	isThirdParty := func(ep *corev1.Endpoints) bool {
+		return ep.Labels["service-kind"] == model.ServiceKindThirdParty.String()
+	}
+	// Endpoint Event Handler
+	epEventHandler := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			ep := obj.(*corev1.Endpoints)
+			serviceID := ep.Labels["service_id"]
+			version := ep.Labels["version"]
+			createrID := ep.Labels["creater_id"]
+			if serviceID != "" && createrID != "" {
+				appservice, err := store.getAppService(serviceID, version, createrID, true)
+				if err == conversion.ErrServiceNotFound {
+					store.conf.KubeClient.CoreV1().Endpoints(ep.Namespace).Delete(ep.Name, &metav1.DeleteOptions{})
+				}
+				if appservice != nil {
+					appservice.AddEndpoints(ep)
+					if isThirdParty(ep) {
+						logrus.Debugf("Endpoints Created: %+v", ep)
+						probeCh.In() <- Event{
+							Type: CreateEvent,
+							Obj:  obj,
+						}
+					}
+					return
+				}
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			ep := obj.(*corev1.Endpoints)
+			serviceID := ep.Labels["service_id"]
+			version := ep.Labels["version"]
+			createrID := ep.Labels["creater_id"]
+			if serviceID != "" && createrID != "" {
+				appservice, _ := store.getAppService(serviceID, version, createrID, false)
+				if appservice != nil {
+					appservice.DelEndpoints(ep)
+					if appservice.IsClosed() {
+						store.DeleteAppService(appservice)
+					}
+					if isThirdParty(ep) {
+						logrus.Debugf("Endpoints deleted: %+v", ep)
+						probeCh.In() <- Event{
+							Type: DeleteEvent,
+							Obj:  obj,
+						}
+					}
+				}
+			}
+		},
+		UpdateFunc: func(old, cur interface{}) {
+			oep := old.(*corev1.Endpoints)
+			cep := cur.(*corev1.Endpoints)
+			if cep.ResourceVersion != oep.ResourceVersion &&
+				!reflect.DeepEqual(cep.Subsets, oep.Subsets) {
+
+				serviceID := cep.Labels["service_id"]
+				version := cep.Labels["version"]
+				createrID := cep.Labels["creater_id"]
+				if serviceID != "" && createrID != "" {
+					appservice, err := store.getAppService(serviceID, version, createrID, true)
+					if err == conversion.ErrServiceNotFound {
+						store.conf.KubeClient.CoreV1().Endpoints(cep.Namespace).Delete(cep.Name, &metav1.DeleteOptions{})
+					}
+					if appservice != nil {
+						appservice.AddEndpoints(cep)
+						if isThirdParty(cep) {
+							logrus.Debugf("Endpoints updated: %+v", cep)
+							probeCh.In() <- Event{
+								Type: UpdateEvent,
+								Obj:  cur,
+								Old:  old,
+							}
+						}
+					}
+				}
+			}
+		},
+	}
+
 	store.informers.Deployment.AddEventHandlerWithResyncPeriod(store, time.Second*10)
 	store.informers.StatefulSet.AddEventHandlerWithResyncPeriod(store, time.Second*10)
 	store.informers.Pod.AddEventHandlerWithResyncPeriod(store, time.Second*10)
@@ -124,6 +237,7 @@ func NewStore(dbmanager db.Manager, conf option.Config) Storer {
 	store.informers.Ingress.AddEventHandlerWithResyncPeriod(store, time.Second*10)
 	store.informers.ConfigMap.AddEventHandlerWithResyncPeriod(store, time.Second*10)
 	store.informers.ReplicaSet.AddEventHandlerWithResyncPeriod(store, time.Second*10)
+	store.informers.Endpoints.AddEventHandlerWithResyncPeriod(epEventHandler, time.Second*10)
 	return store
 }
 
@@ -142,6 +256,7 @@ func (a *appRuntimeStore) init() error {
 			return err
 		}
 	}
+	// init third-party service
 	return a.initStorageclass()
 }
 
@@ -149,10 +264,50 @@ func (a *appRuntimeStore) Start() error {
 	if err := a.init(); err != nil {
 		return err
 	}
+
 	stopch := make(chan struct{})
 	a.informers.Start(stopch)
 	a.stopch = stopch
 	go a.clean()
+
+	for !a.Ready() {
+	}
+	a.initThirdPartyService()
+
+	return nil
+}
+
+func (a *appRuntimeStore) initThirdPartyService() error {
+	logrus.Debugf("begin initializing third-party services.")
+	// TODO: list third party services that have open ports directly.
+	svcs, err := a.dbmanager.TenantServiceDao().ListThirdPartyServices()
+	if err != nil {
+		logrus.Errorf("error listing third-party services: %v", err)
+		return err
+	}
+	for _, svc := range svcs {
+		// ignore service without open port.
+		if !a.dbmanager.TenantServicesPortDao().HasOpenPort(svc.ServiceID) {
+			continue
+		}
+
+		appService, err := conversion.InitCacheAppService(a.dbmanager, svc.ServiceID, "Rainbond")
+		if err != nil {
+			logrus.Errorf("error initializing cache app service: %v", err)
+			return err
+		}
+		a.RegistAppService(appService)
+		err = f.ApplyOne(a.clientset, appService)
+		if err != nil {
+			logrus.Errorf("error applying rule: %v", err)
+			return err
+		}
+
+		a.startCh.In() <- &v1.Event{
+			Type: v1.StartEvent, // TODO: no need to distinguish between event types.
+			Sid:  appService.ServiceID,
+		}
+	}
 	return nil
 }
 
@@ -176,6 +331,7 @@ func (a *appRuntimeStore) checkReplicasetWhetherDelete(app *v1.AppService, rs *a
 		}
 	}
 }
+
 func (a *appRuntimeStore) OnAdd(obj interface{}) {
 	if deployment, ok := obj.(*appsv1.Deployment); ok {
 		serviceID := deployment.Labels["service_id"]
@@ -183,7 +339,7 @@ func (a *appRuntimeStore) OnAdd(obj interface{}) {
 		createrID := deployment.Labels["creater_id"]
 		if serviceID != "" && version != "" && createrID != "" {
 			appservice, err := a.getAppService(serviceID, version, createrID, true)
-			if err == conversion.ErrorNotFoundService {
+			if err == conversion.ErrServiceNotFound {
 				a.conf.KubeClient.AppsV1().Deployments(deployment.Namespace).Delete(deployment.Name, &metav1.DeleteOptions{})
 			}
 			if appservice != nil {
@@ -198,7 +354,7 @@ func (a *appRuntimeStore) OnAdd(obj interface{}) {
 		createrID := statefulset.Labels["creater_id"]
 		if serviceID != "" && version != "" && createrID != "" {
 			appservice, err := a.getAppService(serviceID, version, createrID, true)
-			if err == conversion.ErrorNotFoundService {
+			if err == conversion.ErrServiceNotFound {
 				a.conf.KubeClient.AppsV1().StatefulSets(statefulset.Namespace).Delete(statefulset.Name, &metav1.DeleteOptions{})
 			}
 			if appservice != nil {
@@ -213,7 +369,7 @@ func (a *appRuntimeStore) OnAdd(obj interface{}) {
 		createrID := replicaset.Labels["creater_id"]
 		if serviceID != "" && version != "" && createrID != "" {
 			appservice, err := a.getAppService(serviceID, version, createrID, true)
-			if err == conversion.ErrorNotFoundService {
+			if err == conversion.ErrServiceNotFound {
 				a.conf.KubeClient.AppsV1().Deployments(replicaset.Namespace).Delete(replicaset.Name, &metav1.DeleteOptions{})
 			}
 			if appservice != nil {
@@ -229,7 +385,7 @@ func (a *appRuntimeStore) OnAdd(obj interface{}) {
 		createrID := pod.Labels["creater_id"]
 		if serviceID != "" && version != "" && createrID != "" {
 			appservice, err := a.getAppService(serviceID, version, createrID, true)
-			if err == conversion.ErrorNotFoundService {
+			if err == conversion.ErrServiceNotFound {
 				a.conf.KubeClient.CoreV1().Pods(pod.Namespace).Delete(pod.Name, &metav1.DeleteOptions{})
 			}
 			if appservice != nil {
@@ -245,7 +401,7 @@ func (a *appRuntimeStore) OnAdd(obj interface{}) {
 		createrID := secret.Labels["creater_id"]
 		if serviceID != "" && createrID != "" {
 			appservice, err := a.getAppService(serviceID, version, createrID, true)
-			if err == conversion.ErrorNotFoundService {
+			if err == conversion.ErrServiceNotFound {
 				a.conf.KubeClient.CoreV1().Secrets(secret.Namespace).Delete(secret.Name, &metav1.DeleteOptions{})
 			}
 			if appservice != nil {
@@ -260,7 +416,7 @@ func (a *appRuntimeStore) OnAdd(obj interface{}) {
 		createrID := service.Labels["creater_id"]
 		if serviceID != "" && createrID != "" {
 			appservice, err := a.getAppService(serviceID, version, createrID, true)
-			if err == conversion.ErrorNotFoundService {
+			if err == conversion.ErrServiceNotFound {
 				a.conf.KubeClient.CoreV1().Services(service.Namespace).Delete(service.Name, &metav1.DeleteOptions{})
 			}
 			if appservice != nil {
@@ -275,7 +431,7 @@ func (a *appRuntimeStore) OnAdd(obj interface{}) {
 		createrID := ingress.Labels["creater_id"]
 		if serviceID != "" && createrID != "" {
 			appservice, err := a.getAppService(serviceID, version, createrID, true)
-			if err == conversion.ErrorNotFoundService {
+			if err == conversion.ErrServiceNotFound {
 				a.conf.KubeClient.Extensions().Ingresses(ingress.Namespace).Delete(ingress.Name, &metav1.DeleteOptions{})
 			}
 			if appservice != nil {
@@ -290,10 +446,13 @@ func (a *appRuntimeStore) OnAdd(obj interface{}) {
 		createrID := configmap.Labels["creater_id"]
 		if serviceID != "" && createrID != "" {
 			appservice, err := a.getAppService(serviceID, version, createrID, true)
-			if err == conversion.ErrorNotFoundService {
+			if err == conversion.ErrServiceNotFound {
 				a.conf.KubeClient.CoreV1().ConfigMaps(configmap.Namespace).Delete(configmap.Name, &metav1.DeleteOptions{})
 			}
 			if appservice != nil {
+				if strings.Contains(configmap.Name, "rbd-endpoints") {
+					appservice.SetRbdEndpiontsCM(configmap)
+				}
 				appservice.SetConfigMap(configmap)
 				return
 			}
@@ -307,7 +466,7 @@ func (a *appRuntimeStore) getAppService(serviceID, version, createrID string, cr
 	appservice = a.GetAppService(serviceID)
 	if appservice == nil && creater {
 		var err error
-		appservice, err = conversion.InitCacheAppService(a.dbmanager, serviceID, version, createrID)
+		appservice, err = conversion.InitCacheAppService(a.dbmanager, serviceID, createrID)
 		if err != nil {
 			logrus.Errorf("init cache app service failure:%s", err.Error())
 			return nil, err
@@ -432,7 +591,11 @@ func (a *appRuntimeStore) OnDelete(obj interface{}) {
 		if serviceID != "" && createrID != "" {
 			appservice, _ := a.getAppService(serviceID, version, createrID, false)
 			if appservice != nil {
-				appservice.DeleteConfigMaps(configmap)
+				if strings.Contains(configmap.Name, "rbd-endpoints") {
+					appservice.DelRbdEndpiontCM()
+				} else {
+					appservice.DeleteConfigMaps(configmap)
+				}
 				if appservice.IsClosed() {
 					a.DeleteAppService(appservice)
 				}
@@ -589,6 +752,7 @@ func (a *appRuntimeStore) GetAppServicesStatus(serviceIDs []string) map[string]s
 			statusMap[appService.ServiceID] = a.GetAppServiceStatus(appService.ServiceID)
 			return true
 		})
+		return statusMap
 	}
 	for _, serviceID := range serviceIDs {
 		statusMap[serviceID] = a.GetAppServiceStatus(serviceID)
@@ -602,7 +766,7 @@ func (a *appRuntimeStore) GetNeedBillingStatus(serviceIDs []string) map[string]s
 		a.appServices.Range(func(k, v interface{}) bool {
 			appService, _ := v.(*v1.AppService)
 			status := a.GetAppServiceStatus(appService.ServiceID)
-			if isClosedStatus(status) {
+			if !isClosedStatus(status) {
 				statusMap[appService.ServiceID] = status
 			}
 			return true
@@ -610,7 +774,7 @@ func (a *appRuntimeStore) GetNeedBillingStatus(serviceIDs []string) map[string]s
 	} else {
 		for _, serviceID := range serviceIDs {
 			status := a.GetAppServiceStatus(serviceID)
-			if isClosedStatus(status) {
+			if !isClosedStatus(status) {
 				statusMap[serviceID] = status
 			}
 		}
@@ -689,4 +853,55 @@ func (a *appRuntimeStore) addAbnormalInfo(ai *v1.AbnormalInfo) {
 }
 func (a *appRuntimeStore) GetPodLister() listcorev1.PodLister {
 	return a.listers.Pod
+}
+
+//GetTenantResource get tenant resource
+func (a *appRuntimeStore) GetTenantResource(tenantID string) *v1.TenantResource {
+	pods, err := a.listers.Pod.Pods(tenantID).List(labels.Everything())
+	if err != nil {
+		logrus.Errorf("list namespace %s pod failure %s", tenantID, err.Error())
+		return nil
+	}
+	var resource v1.TenantResource
+	for _, pod := range pods {
+		for _, container := range pod.Spec.Containers {
+			cpulimit := container.Resources.Limits.Cpu()
+			memorylimit := container.Resources.Limits.Memory()
+			cpurequest := container.Resources.Requests.Cpu()
+			memoryrequest := container.Resources.Requests.Memory()
+			if cpulimit != nil {
+				resource.CPULimit += cpulimit.MilliValue()
+			}
+			if memorylimit != nil {
+				if ml, ok := memorylimit.AsInt64(); ok {
+					resource.MemoryLimit += ml
+				} else {
+					resource.MemoryLimit += memorylimit.Value()
+				}
+			}
+			if cpurequest != nil {
+				resource.CPURequest += cpurequest.MilliValue()
+			}
+			if memoryrequest != nil {
+				if mr, ok := memoryrequest.AsInt64(); ok {
+					resource.MemoryRequest += mr
+				} else {
+					resource.MemoryRequest += memoryrequest.Value()
+				}
+			}
+		}
+	}
+	return &resource
+}
+
+//GetTenantRunningApp get running app by tenant
+func (a *appRuntimeStore) GetTenantRunningApp(tenantID string) (list []*v1.AppService) {
+	a.appServices.Range(func(k, v interface{}) bool {
+		appService, _ := v.(*v1.AppService)
+		if appService != nil && (appService.TenantID == tenantID || tenantID == corev1.NamespaceAll) && !appService.IsClosed() {
+			list = append(list, appService)
+		}
+		return true
+	})
+	return
 }

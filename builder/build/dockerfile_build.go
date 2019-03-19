@@ -27,6 +27,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/goodrain/rainbond/builder"
 	"github.com/goodrain/rainbond/builder/sources"
+	"github.com/goodrain/rainbond/util"
 )
 
 func dockerfileBuilder() (Build, error) {
@@ -46,16 +47,11 @@ func (d *dockerfileBuild) Build(re *Request) (*Response, error) {
 		return nil, err
 	}
 	buildImageName := CreateImageName(re.RepositoryURL, re.ServiceAlias, re.DeployVersion)
-	args := make(map[string]*string, 5)
-	for k, v := range re.BuildEnvs {
-		if ks := strings.Split(k, "ARG_"); len(ks) > 1 {
-			args[ks[1]] = &v
-		}
-	}
+
 	buildOptions := types.ImageBuildOptions{
 		Tags:      []string{buildImageName},
 		Remove:    true,
-		BuildArgs: args,
+		BuildArgs: GetARGs(re.BuildEnvs),
 	}
 	if _, ok := re.BuildEnvs["NO_CACHE"]; ok {
 		buildOptions.NoCache = true
@@ -89,4 +85,25 @@ func (d *dockerfileBuild) Build(re *Request) (*Response, error) {
 		MediumPath: buildImageName,
 		MediumType: ImageMediumType,
 	}, nil
+}
+
+//GetARGs get args and parse value
+func GetARGs(buildEnvs map[string]string) map[string]*string {
+	args := make(map[string]*string)
+	argStr := make(map[string]string)
+	for k, v := range buildEnvs {
+		if strings.Replace(v, " ", "", -1) == "" {
+			continue
+		}
+		if ks := strings.Split(k, "ARG_"); len(ks) > 1 {
+			value := v
+			args[ks[1]] = &value
+			argStr[ks[1]] = value
+		}
+	}
+	for k, arg := range args {
+		value := util.ParseVariable(*arg, argStr)
+		args[k] = &value
+	}
+	return args
 }

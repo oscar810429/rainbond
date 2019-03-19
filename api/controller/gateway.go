@@ -19,8 +19,8 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/goodrain/rainbond/api/middleware"
 	"net/http"
 	"net/url"
 	"strings"
@@ -53,14 +53,11 @@ func (g *GatewayStruct) HTTPRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *GatewayStruct) addHTTPRule(w http.ResponseWriter, r *http.Request) {
-	logrus.Debugf("add http rule.")
 	var req api_model.AddHTTPRuleStruct
 	ok := httputil.ValidatorRequestStructAndErrorResponse(r, w, &req, nil)
 	if !ok {
 		return
 	}
-	reqJSON, _ := json.Marshal(req)
-	logrus.Debugf("Request is : %s", string(reqJSON))
 
 	// verify request
 	values := url.Values{}
@@ -87,7 +84,10 @@ func (g *GatewayStruct) addHTTPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := handler.GetGatewayHandler().SendTask(sid, "add-http-rule"); err != nil {
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": sid,
+		"action":     "add-http-rule",
+	}); err != nil {
 		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
 	}
 
@@ -95,14 +95,11 @@ func (g *GatewayStruct) addHTTPRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *GatewayStruct) updateHTTPRule(w http.ResponseWriter, r *http.Request) {
-	logrus.Debugf("update http rule.")
 	var req api_model.UpdateHTTPRuleStruct
 	ok := httputil.ValidatorRequestStructAndErrorResponse(r, w, &req, nil)
 	if !ok {
 		return
 	}
-	reqJSON, _ := json.Marshal(req)
-	logrus.Debugf("Request is : %s", string(reqJSON))
 
 	// verify request
 	values := url.Values{}
@@ -139,7 +136,10 @@ func (g *GatewayStruct) updateHTTPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := handler.GetGatewayHandler().SendTask(sid, "update-http-rule"); err != nil {
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": sid,
+		"action":     "update-http-rule",
+	}); err != nil {
 		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
 	}
 
@@ -147,14 +147,11 @@ func (g *GatewayStruct) updateHTTPRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *GatewayStruct) deleteHTTPRule(w http.ResponseWriter, r *http.Request) {
-	logrus.Debugf("delete http rule.")
 	var req api_model.DeleteHTTPRuleStruct
 	ok := httputil.ValidatorRequestStructAndErrorResponse(r, w, &req, nil)
 	if !ok {
 		return
 	}
-	reqJSON, _ := json.Marshal(req)
-	logrus.Debugf("Request is : %s", string(reqJSON))
 
 	h := handler.GetGatewayHandler()
 	serviceID, err := h.DeleteHTTPRule(&req)
@@ -163,7 +160,10 @@ func (g *GatewayStruct) deleteHTTPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := handler.GetGatewayHandler().SendTask(serviceID, "delete-http-rule"); err != nil {
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": serviceID,
+		"action":     "delete-http-rule",
+	}); err != nil {
 		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
 	}
 
@@ -185,14 +185,11 @@ func (g *GatewayStruct) TCPRule(w http.ResponseWriter, r *http.Request) {
 
 // AddTCPRule adds a tcp rule
 func (g *GatewayStruct) AddTCPRule(w http.ResponseWriter, r *http.Request) {
-	logrus.Debugf("add tcp rule.")
 	var req api_model.AddTCPRuleStruct
 	ok := httputil.ValidatorRequestStructAndErrorResponse(r, w, &req, nil)
 	if !ok {
 		return
 	}
-	reqJSON, _ := json.Marshal(req)
-	logrus.Debugf("Request is : %s", string(reqJSON))
 
 	h := handler.GetGatewayHandler()
 	// verify request
@@ -233,7 +230,10 @@ func (g *GatewayStruct) AddTCPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := handler.GetGatewayHandler().SendTask(sid, "add-tcp-rule"); err != nil {
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": sid,
+		"action":     "add-tcp-rule",
+	}); err != nil {
 		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
 	}
 
@@ -241,25 +241,17 @@ func (g *GatewayStruct) AddTCPRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *GatewayStruct) updateTCPRule(w http.ResponseWriter, r *http.Request) {
-	logrus.Debugf("update tcp rule.")
 	var req api_model.UpdateTCPRuleStruct
 	ok := httputil.ValidatorRequestStructAndErrorResponse(r, w, &req, nil)
 	if !ok {
 		return
 	}
-	reqJSON, _ := json.Marshal(req)
-	logrus.Debugf("Request is : %s", string(reqJSON))
 
 	h := handler.GetGatewayHandler()
 	// verify reqeust
 	values := url.Values{}
 	if req.Port != 0 && req.Port <= g.cfg.MinExtPort {
 		values["port"] = []string{fmt.Sprintf("The port field should be greater than %d", g.cfg.MinExtPort)}
-	} else {
-		// check if the port exists
-		if h.PortExists(req.Port) {
-			values["port"] = []string{fmt.Sprintf("The port(%v) already exists", req.Port)}
-		}
 	}
 	if len(req.RuleExtensions) > 0 {
 		for _, re := range req.RuleExtensions {
@@ -285,7 +277,10 @@ func (g *GatewayStruct) updateTCPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := handler.GetGatewayHandler().SendTask(sid, "update-tcp-rule"); err != nil {
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": sid,
+		"action":     "update-tcp-rule",
+	}); err != nil {
 		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
 	}
 
@@ -293,14 +288,11 @@ func (g *GatewayStruct) updateTCPRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *GatewayStruct) deleteTCPRule(w http.ResponseWriter, r *http.Request) {
-	logrus.Debugf("delete TCP rule.")
 	var req api_model.DeleteTCPRuleStruct
 	ok := httputil.ValidatorRequestStructAndErrorResponse(r, w, &req, nil)
 	if !ok {
 		return
 	}
-	reqJSON, _ := json.Marshal(req)
-	logrus.Debugf("Request is : %s", string(reqJSON))
 
 	h := handler.GetGatewayHandler()
 	sid, err := h.DeleteTCPRule(&req)
@@ -310,24 +302,46 @@ func (g *GatewayStruct) deleteTCPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := handler.GetGatewayHandler().SendTask(sid, "delete-tcp-rule"); err != nil {
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": sid,
+		"action":     "delete-tcp-rule",
+	}); err != nil {
 		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
 	}
-
 	httputil.ReturnSuccess(r, w, "success")
 }
 
 // GetAvailablePort returns a available port
 func (g *GatewayStruct) GetAvailablePort(w http.ResponseWriter, r *http.Request) {
-	logrus.Debugf("get available port.")
 	h := handler.GetGatewayHandler()
-
 	res, err := h.GetAvailablePort()
 	if err != nil {
 		httputil.ReturnError(r, w, 500, fmt.Sprintf("Unexpected error occorred while "+
 			"getting available port: %v", err))
 		return
 	}
-
 	httputil.ReturnSuccess(r, w, res)
+}
+
+// RuleConfig is used to add, update or delete rule config.
+func (g *GatewayStruct) RuleConfig(w http.ResponseWriter, r *http.Request) {
+	var req api_model.RuleConfigReq
+	ok := httputil.ValidatorRequestStructAndErrorResponse(r, w, &req, nil)
+	if !ok {
+		return
+	}
+	if err := handler.GetGatewayHandler().RuleConfig(&req); err != nil {
+		httputil.ReturnError(r, w, 500, fmt.Sprintf("Rule id: %s; error update rule config: %v", req.RuleID, err))
+		return
+	}
+
+	sid := r.Context().Value(middleware.ContextKey("service_id")).(string)
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": sid,
+		"action":     "update-rule-config",
+	}); err != nil {
+		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
+	}
+
+	httputil.ReturnSuccess(r, w, "success")
 }

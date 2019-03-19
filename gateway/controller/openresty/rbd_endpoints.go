@@ -1,12 +1,19 @@
 package openresty
 
 import (
+	"github.com/goodrain/rainbond/gateway/annotations/rewrite"
 	"fmt"
+	"github.com/goodrain/rainbond/gateway/annotations/proxy"
+
 	"github.com/goodrain/rainbond/gateway/controller/openresty/model"
 	"github.com/goodrain/rainbond/gateway/v1"
 )
 
 func langGoodrainMe(ip string) *model.Server {
+	proxy := proxy.NewProxyConfig()
+	proxy.ConnectTimeout = 60
+	proxy.ReadTimeout = 600
+	proxy.SendTimeout = 600
 	svr := &model.Server{
 		Listen:     fmt.Sprintf("%s:%d", ip, 80),
 		ServerName: "lang.goodrain.me",
@@ -19,16 +26,11 @@ func langGoodrainMe(ip string) *model.Server {
 		},
 		Locations: []*model.Location{
 			{
-				Path:                "/",
-				ProxyRedirect:       "off",
-				ProxyConnectTimeout: model.Time{Num: 60, Unit: "s"},
-				ProxyReadTimeout:    model.Time{Num: 600, Unit: "s"},
-				ProxySendTimeout:    model.Time{Num: 600, Unit: "s"},
-				ProxySetHeaders: []*model.ProxySetHeader{
-					{Field: "Host", Value: "$http_host"},
-					{Field: "X-Real-IP", Value: "$remote_addr"},
-					{Field: "X-Forwarded-For", Value: "$proxy_add_x_forwarded_for"},
-				},
+				Path:             "/",
+				ProxyRedirect:    "off",
+				EnableMetrics:    false,
+				DisableAccessLog: true,
+				Proxy:            proxy,
 				NameCondition: map[string]*v1.Condition{
 					"lang": {
 						Type:  v1.DefaultType,
@@ -42,28 +44,29 @@ func langGoodrainMe(ip string) *model.Server {
 }
 
 func mavenGoodrainMe(ip string) *model.Server {
+	proxy := proxy.NewProxyConfig()
+	proxy.ConnectTimeout = 60
+	proxy.ReadTimeout = 600
+	proxy.SendTimeout = 600
 	svr := &model.Server{
 		Listen:     fmt.Sprintf("%s:%d", ip, 80),
 		ServerName: "maven.goodrain.me",
 		Locations: []*model.Location{
 			{
-				Path: "/",
-				Rewrites: []model.Rewrite{
-					{
-						Regex:       "^/(.*)$",
-						Replacement: "/artifactory/libs-release/$1",
-						Flag:        "break",
+				EnableMetrics:    false,
+				DisableAccessLog: true,
+				Path:             "/",
+				Rewrite: rewrite.Config{
+					Rewrites: []*rewrite.Rewrite {
+						{
+							Regex:       "^/(.*)$",
+							Replacement: "/artifactory/libs-release/$1",
+							Flag:        "break",
+						},
 					},
 				},
-				ProxyRedirect:       "off",
-				ProxyConnectTimeout: model.Time{Num: 60, Unit: "s"},
-				ProxyReadTimeout:    model.Time{Num: 600, Unit: "s"},
-				ProxySendTimeout:    model.Time{Num: 600, Unit: "s"},
-				ProxySetHeaders: []*model.ProxySetHeader{
-					{Field: "Host", Value: "$http_host"},
-					{Field: "X-Real-IP", Value: "$remote_addr"},
-					{Field: "X-Forwarded-For", Value: "$proxy_add_x_forwarded_for"},
-				},
+				ProxyRedirect: "off",
+				Proxy:         proxy,
 				NameCondition: map[string]*v1.Condition{
 					"maven": {
 						Type:  v1.DefaultType,
@@ -73,6 +76,7 @@ func mavenGoodrainMe(ip string) *model.Server {
 			},
 			{
 				Path:             "/monitor",
+				Proxy:            proxy,
 				Return:           model.Return{Code: 204},
 				DisableProxyPass: true,
 			},
@@ -82,6 +86,10 @@ func mavenGoodrainMe(ip string) *model.Server {
 }
 
 func goodrainMe(cfgPath string, ip string) *model.Server {
+	proxy := proxy.NewProxyConfig()
+	proxy.ReadTimeout = 900
+	proxy.BodySize = 0
+	proxy.SetHeaders["X-Forwarded-Proto"] = "https"
 	svr := &model.Server{
 		Listen:                  fmt.Sprintf("%s:%d %s", ip, 443, "ssl"),
 		ServerName:              "goodrain.me",
@@ -91,17 +99,10 @@ func goodrainMe(cfgPath string, ip string) *model.Server {
 		ChunkedTransferEncoding: true,
 		Locations: []*model.Location{
 			{
-				Path: "/v2/",
-				ProxySetHeaders: []*model.ProxySetHeader{
-					{Field: "Host", Value: "$http_host"},
-					{Field: "X-Real-IP", Value: "$remote_addr"},
-					{Field: "X-Forwarded-For", Value: "$proxy_add_x_forwarded_for"},
-					{Field: "X-Forwarded-Proto", Value: "https"},
-				},
-				ProxyReadTimeout: model.Time{
-					Num:  900,
-					Unit: "s",
-				},
+				EnableMetrics:    false,
+				DisableAccessLog: true,
+				Path:             "/v2/",
+				Proxy: proxy,
 				NameCondition: map[string]*v1.Condition{
 					"registry": {
 						Type:  v1.DefaultType,
@@ -111,6 +112,7 @@ func goodrainMe(cfgPath string, ip string) *model.Server {
 			},
 			{
 				Path:             "/monitor",
+				Proxy:            proxy,
 				Return:           model.Return{Code: 200, Text: "ok"},
 				DisableProxyPass: true,
 			},

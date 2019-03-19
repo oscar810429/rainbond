@@ -22,6 +22,37 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
+type Empty struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Empty) Reset()         { *m = Empty{} }
+func (m *Empty) String() string { return proto.CompactTextString(m) }
+func (*Empty) ProtoMessage()    {}
+func (*Empty) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f94cf1a886c479d6, []int{0}
+}
+
+func (m *Empty) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Empty.Unmarshal(m, b)
+}
+func (m *Empty) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Empty.Marshal(b, m, deterministic)
+}
+func (m *Empty) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Empty.Merge(m, src)
+}
+func (m *Empty) XXX_Size() int {
+	return xxx_messageInfo_Empty.Size(m)
+}
+func (m *Empty) XXX_DiscardUnknown() {
+	xxx_messageInfo_Empty.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Empty proto.InternalMessageInfo
+
 type ServiceRequest struct {
 	ServiceId            string   `protobuf:"bytes,1,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -33,7 +64,7 @@ func (m *ServiceRequest) Reset()         { *m = ServiceRequest{} }
 func (m *ServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*ServiceRequest) ProtoMessage()    {}
 func (*ServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f94cf1a886c479d6, []int{0}
+	return fileDescriptor_f94cf1a886c479d6, []int{1}
 }
 
 func (m *ServiceRequest) XXX_Unmarshal(b []byte) error {
@@ -72,7 +103,7 @@ func (m *ServicesRequest) Reset()         { *m = ServicesRequest{} }
 func (m *ServicesRequest) String() string { return proto.CompactTextString(m) }
 func (*ServicesRequest) ProtoMessage()    {}
 func (*ServicesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f94cf1a886c479d6, []int{1}
+	return fileDescriptor_f94cf1a886c479d6, []int{2}
 }
 
 func (m *ServicesRequest) XXX_Unmarshal(b []byte) error {
@@ -100,6 +131,45 @@ func (m *ServicesRequest) GetServiceIds() string {
 	return ""
 }
 
+type TenantRequest struct {
+	TenantId             string   `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *TenantRequest) Reset()         { *m = TenantRequest{} }
+func (m *TenantRequest) String() string { return proto.CompactTextString(m) }
+func (*TenantRequest) ProtoMessage()    {}
+func (*TenantRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f94cf1a886c479d6, []int{3}
+}
+
+func (m *TenantRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TenantRequest.Unmarshal(m, b)
+}
+func (m *TenantRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TenantRequest.Marshal(b, m, deterministic)
+}
+func (m *TenantRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TenantRequest.Merge(m, src)
+}
+func (m *TenantRequest) XXX_Size() int {
+	return xxx_messageInfo_TenantRequest.Size(m)
+}
+func (m *TenantRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_TenantRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TenantRequest proto.InternalMessageInfo
+
+func (m *TenantRequest) GetTenantId() string {
+	if m != nil {
+		return m.TenantId
+	}
+	return ""
+}
+
 type StatusMessage struct {
 	Status               map[string]string `protobuf:"bytes,1,rep,name=status,proto3" json:"status,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
@@ -111,7 +181,7 @@ func (m *StatusMessage) Reset()         { *m = StatusMessage{} }
 func (m *StatusMessage) String() string { return proto.CompactTextString(m) }
 func (*StatusMessage) ProtoMessage()    {}
 func (*StatusMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f94cf1a886c479d6, []int{2}
+	return fileDescriptor_f94cf1a886c479d6, []int{4}
 }
 
 func (m *StatusMessage) XXX_Unmarshal(b []byte) error {
@@ -150,7 +220,7 @@ func (m *DiskMessage) Reset()         { *m = DiskMessage{} }
 func (m *DiskMessage) String() string { return proto.CompactTextString(m) }
 func (*DiskMessage) ProtoMessage()    {}
 func (*DiskMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f94cf1a886c479d6, []int{3}
+	return fileDescriptor_f94cf1a886c479d6, []int{5}
 }
 
 func (m *DiskMessage) XXX_Unmarshal(b []byte) error {
@@ -189,7 +259,7 @@ func (m *ServiceAppPodList) Reset()         { *m = ServiceAppPodList{} }
 func (m *ServiceAppPodList) String() string { return proto.CompactTextString(m) }
 func (*ServiceAppPodList) ProtoMessage()    {}
 func (*ServiceAppPodList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f94cf1a886c479d6, []int{4}
+	return fileDescriptor_f94cf1a886c479d6, []int{6}
 }
 
 func (m *ServiceAppPodList) XXX_Unmarshal(b []byte) error {
@@ -234,7 +304,7 @@ func (m *ServiceAppPod) Reset()         { *m = ServiceAppPod{} }
 func (m *ServiceAppPod) String() string { return proto.CompactTextString(m) }
 func (*ServiceAppPod) ProtoMessage()    {}
 func (*ServiceAppPod) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f94cf1a886c479d6, []int{5}
+	return fileDescriptor_f94cf1a886c479d6, []int{7}
 }
 
 func (m *ServiceAppPod) XXX_Unmarshal(b []byte) error {
@@ -306,7 +376,7 @@ func (m *ServiceAppPod) GetContainers() map[string]*Container {
 
 type Container struct {
 	ContainerName        string   `protobuf:"bytes,1,opt,name=container_name,json=containerName,proto3" json:"container_name,omitempty"`
-	MemoryLimit          int32    `protobuf:"varint,2,opt,name=memory_limit,json=memoryLimit,proto3" json:"memory_limit,omitempty"`
+	MemoryLimit          int64    `protobuf:"varint,2,opt,name=memory_limit,json=memoryLimit,proto3" json:"memory_limit,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -316,7 +386,7 @@ func (m *Container) Reset()         { *m = Container{} }
 func (m *Container) String() string { return proto.CompactTextString(m) }
 func (*Container) ProtoMessage()    {}
 func (*Container) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f94cf1a886c479d6, []int{6}
+	return fileDescriptor_f94cf1a886c479d6, []int{8}
 }
 
 func (m *Container) XXX_Unmarshal(b []byte) error {
@@ -344,7 +414,7 @@ func (m *Container) GetContainerName() string {
 	return ""
 }
 
-func (m *Container) GetMemoryLimit() int32 {
+func (m *Container) GetMemoryLimit() int64 {
 	if m != nil {
 		return m.MemoryLimit
 	}
@@ -370,7 +440,7 @@ func (m *DeployInfo) Reset()         { *m = DeployInfo{} }
 func (m *DeployInfo) String() string { return proto.CompactTextString(m) }
 func (*DeployInfo) ProtoMessage()    {}
 func (*DeployInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f94cf1a886c479d6, []int{7}
+	return fileDescriptor_f94cf1a886c479d6, []int{9}
 }
 
 func (m *DeployInfo) XXX_Unmarshal(b []byte) error {
@@ -454,9 +524,389 @@ func (m *DeployInfo) GetStatus() string {
 	return ""
 }
 
+type TenantResource struct {
+	CpuRequest           int64    `protobuf:"varint,1,opt,name=cpu_request,json=cpuRequest,proto3" json:"cpu_request,omitempty"`
+	CpuLimit             int64    `protobuf:"varint,2,opt,name=cpu_limit,json=cpuLimit,proto3" json:"cpu_limit,omitempty"`
+	MemoryRequest        int64    `protobuf:"varint,3,opt,name=memory_request,json=memoryRequest,proto3" json:"memory_request,omitempty"`
+	MemoryLimit          int64    `protobuf:"varint,4,opt,name=memory_limit,json=memoryLimit,proto3" json:"memory_limit,omitempty"`
+	RunningAppNum        int64    `protobuf:"varint,5,opt,name=running_app_num,json=runningAppNum,proto3" json:"running_app_num,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *TenantResource) Reset()         { *m = TenantResource{} }
+func (m *TenantResource) String() string { return proto.CompactTextString(m) }
+func (*TenantResource) ProtoMessage()    {}
+func (*TenantResource) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f94cf1a886c479d6, []int{10}
+}
+
+func (m *TenantResource) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TenantResource.Unmarshal(m, b)
+}
+func (m *TenantResource) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TenantResource.Marshal(b, m, deterministic)
+}
+func (m *TenantResource) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TenantResource.Merge(m, src)
+}
+func (m *TenantResource) XXX_Size() int {
+	return xxx_messageInfo_TenantResource.Size(m)
+}
+func (m *TenantResource) XXX_DiscardUnknown() {
+	xxx_messageInfo_TenantResource.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TenantResource proto.InternalMessageInfo
+
+func (m *TenantResource) GetCpuRequest() int64 {
+	if m != nil {
+		return m.CpuRequest
+	}
+	return 0
+}
+
+func (m *TenantResource) GetCpuLimit() int64 {
+	if m != nil {
+		return m.CpuLimit
+	}
+	return 0
+}
+
+func (m *TenantResource) GetMemoryRequest() int64 {
+	if m != nil {
+		return m.MemoryRequest
+	}
+	return 0
+}
+
+func (m *TenantResource) GetMemoryLimit() int64 {
+	if m != nil {
+		return m.MemoryLimit
+	}
+	return 0
+}
+
+func (m *TenantResource) GetRunningAppNum() int64 {
+	if m != nil {
+		return m.RunningAppNum
+	}
+	return 0
+}
+
+type AddThirdPartyEndpointsReq struct {
+	Uuid                 string   `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Sid                  string   `protobuf:"bytes,2,opt,name=sid,proto3" json:"sid,omitempty"`
+	Ip                   string   `protobuf:"bytes,3,opt,name=ip,proto3" json:"ip,omitempty"`
+	Port                 int32    `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	IsOnline             bool     `protobuf:"varint,5,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *AddThirdPartyEndpointsReq) Reset()         { *m = AddThirdPartyEndpointsReq{} }
+func (m *AddThirdPartyEndpointsReq) String() string { return proto.CompactTextString(m) }
+func (*AddThirdPartyEndpointsReq) ProtoMessage()    {}
+func (*AddThirdPartyEndpointsReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f94cf1a886c479d6, []int{11}
+}
+
+func (m *AddThirdPartyEndpointsReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AddThirdPartyEndpointsReq.Unmarshal(m, b)
+}
+func (m *AddThirdPartyEndpointsReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AddThirdPartyEndpointsReq.Marshal(b, m, deterministic)
+}
+func (m *AddThirdPartyEndpointsReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AddThirdPartyEndpointsReq.Merge(m, src)
+}
+func (m *AddThirdPartyEndpointsReq) XXX_Size() int {
+	return xxx_messageInfo_AddThirdPartyEndpointsReq.Size(m)
+}
+func (m *AddThirdPartyEndpointsReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_AddThirdPartyEndpointsReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AddThirdPartyEndpointsReq proto.InternalMessageInfo
+
+func (m *AddThirdPartyEndpointsReq) GetUuid() string {
+	if m != nil {
+		return m.Uuid
+	}
+	return ""
+}
+
+func (m *AddThirdPartyEndpointsReq) GetSid() string {
+	if m != nil {
+		return m.Sid
+	}
+	return ""
+}
+
+func (m *AddThirdPartyEndpointsReq) GetIp() string {
+	if m != nil {
+		return m.Ip
+	}
+	return ""
+}
+
+func (m *AddThirdPartyEndpointsReq) GetPort() int32 {
+	if m != nil {
+		return m.Port
+	}
+	return 0
+}
+
+func (m *AddThirdPartyEndpointsReq) GetIsOnline() bool {
+	if m != nil {
+		return m.IsOnline
+	}
+	return false
+}
+
+type UpdThirdPartyEndpointsReq struct {
+	Uuid                 string   `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Sid                  string   `protobuf:"bytes,2,opt,name=sid,proto3" json:"sid,omitempty"`
+	Ip                   string   `protobuf:"bytes,3,opt,name=ip,proto3" json:"ip,omitempty"`
+	Port                 int32    `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	IsOnline             bool     `protobuf:"varint,5,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdThirdPartyEndpointsReq) Reset()         { *m = UpdThirdPartyEndpointsReq{} }
+func (m *UpdThirdPartyEndpointsReq) String() string { return proto.CompactTextString(m) }
+func (*UpdThirdPartyEndpointsReq) ProtoMessage()    {}
+func (*UpdThirdPartyEndpointsReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f94cf1a886c479d6, []int{12}
+}
+
+func (m *UpdThirdPartyEndpointsReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_UpdThirdPartyEndpointsReq.Unmarshal(m, b)
+}
+func (m *UpdThirdPartyEndpointsReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_UpdThirdPartyEndpointsReq.Marshal(b, m, deterministic)
+}
+func (m *UpdThirdPartyEndpointsReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdThirdPartyEndpointsReq.Merge(m, src)
+}
+func (m *UpdThirdPartyEndpointsReq) XXX_Size() int {
+	return xxx_messageInfo_UpdThirdPartyEndpointsReq.Size(m)
+}
+func (m *UpdThirdPartyEndpointsReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdThirdPartyEndpointsReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdThirdPartyEndpointsReq proto.InternalMessageInfo
+
+func (m *UpdThirdPartyEndpointsReq) GetUuid() string {
+	if m != nil {
+		return m.Uuid
+	}
+	return ""
+}
+
+func (m *UpdThirdPartyEndpointsReq) GetSid() string {
+	if m != nil {
+		return m.Sid
+	}
+	return ""
+}
+
+func (m *UpdThirdPartyEndpointsReq) GetIp() string {
+	if m != nil {
+		return m.Ip
+	}
+	return ""
+}
+
+func (m *UpdThirdPartyEndpointsReq) GetPort() int32 {
+	if m != nil {
+		return m.Port
+	}
+	return 0
+}
+
+func (m *UpdThirdPartyEndpointsReq) GetIsOnline() bool {
+	if m != nil {
+		return m.IsOnline
+	}
+	return false
+}
+
+type DelThirdPartyEndpointsReq struct {
+	Uuid                 string   `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Sid                  string   `protobuf:"bytes,2,opt,name=sid,proto3" json:"sid,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DelThirdPartyEndpointsReq) Reset()         { *m = DelThirdPartyEndpointsReq{} }
+func (m *DelThirdPartyEndpointsReq) String() string { return proto.CompactTextString(m) }
+func (*DelThirdPartyEndpointsReq) ProtoMessage()    {}
+func (*DelThirdPartyEndpointsReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f94cf1a886c479d6, []int{13}
+}
+
+func (m *DelThirdPartyEndpointsReq) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DelThirdPartyEndpointsReq.Unmarshal(m, b)
+}
+func (m *DelThirdPartyEndpointsReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DelThirdPartyEndpointsReq.Marshal(b, m, deterministic)
+}
+func (m *DelThirdPartyEndpointsReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DelThirdPartyEndpointsReq.Merge(m, src)
+}
+func (m *DelThirdPartyEndpointsReq) XXX_Size() int {
+	return xxx_messageInfo_DelThirdPartyEndpointsReq.Size(m)
+}
+func (m *DelThirdPartyEndpointsReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_DelThirdPartyEndpointsReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DelThirdPartyEndpointsReq proto.InternalMessageInfo
+
+func (m *DelThirdPartyEndpointsReq) GetUuid() string {
+	if m != nil {
+		return m.Uuid
+	}
+	return ""
+}
+
+func (m *DelThirdPartyEndpointsReq) GetSid() string {
+	if m != nil {
+		return m.Sid
+	}
+	return ""
+}
+
+type ThirdPartyEndpoint struct {
+	Uuid                 string   `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	Sid                  string   `protobuf:"bytes,2,opt,name=sid,proto3" json:"sid,omitempty"`
+	Ip                   string   `protobuf:"bytes,3,opt,name=ip,proto3" json:"ip,omitempty"`
+	Port                 int32    `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	Status               string   `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
+	IsOnline             bool     `protobuf:"varint,6,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ThirdPartyEndpoint) Reset()         { *m = ThirdPartyEndpoint{} }
+func (m *ThirdPartyEndpoint) String() string { return proto.CompactTextString(m) }
+func (*ThirdPartyEndpoint) ProtoMessage()    {}
+func (*ThirdPartyEndpoint) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f94cf1a886c479d6, []int{14}
+}
+
+func (m *ThirdPartyEndpoint) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ThirdPartyEndpoint.Unmarshal(m, b)
+}
+func (m *ThirdPartyEndpoint) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ThirdPartyEndpoint.Marshal(b, m, deterministic)
+}
+func (m *ThirdPartyEndpoint) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ThirdPartyEndpoint.Merge(m, src)
+}
+func (m *ThirdPartyEndpoint) XXX_Size() int {
+	return xxx_messageInfo_ThirdPartyEndpoint.Size(m)
+}
+func (m *ThirdPartyEndpoint) XXX_DiscardUnknown() {
+	xxx_messageInfo_ThirdPartyEndpoint.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ThirdPartyEndpoint proto.InternalMessageInfo
+
+func (m *ThirdPartyEndpoint) GetUuid() string {
+	if m != nil {
+		return m.Uuid
+	}
+	return ""
+}
+
+func (m *ThirdPartyEndpoint) GetSid() string {
+	if m != nil {
+		return m.Sid
+	}
+	return ""
+}
+
+func (m *ThirdPartyEndpoint) GetIp() string {
+	if m != nil {
+		return m.Ip
+	}
+	return ""
+}
+
+func (m *ThirdPartyEndpoint) GetPort() int32 {
+	if m != nil {
+		return m.Port
+	}
+	return 0
+}
+
+func (m *ThirdPartyEndpoint) GetStatus() string {
+	if m != nil {
+		return m.Status
+	}
+	return ""
+}
+
+func (m *ThirdPartyEndpoint) GetIsOnline() bool {
+	if m != nil {
+		return m.IsOnline
+	}
+	return false
+}
+
+type ThirdPartyEndpoints struct {
+	Obj                  []*ThirdPartyEndpoint `protobuf:"bytes,1,rep,name=obj,proto3" json:"obj,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
+	XXX_unrecognized     []byte                `json:"-"`
+	XXX_sizecache        int32                 `json:"-"`
+}
+
+func (m *ThirdPartyEndpoints) Reset()         { *m = ThirdPartyEndpoints{} }
+func (m *ThirdPartyEndpoints) String() string { return proto.CompactTextString(m) }
+func (*ThirdPartyEndpoints) ProtoMessage()    {}
+func (*ThirdPartyEndpoints) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f94cf1a886c479d6, []int{15}
+}
+
+func (m *ThirdPartyEndpoints) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ThirdPartyEndpoints.Unmarshal(m, b)
+}
+func (m *ThirdPartyEndpoints) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ThirdPartyEndpoints.Marshal(b, m, deterministic)
+}
+func (m *ThirdPartyEndpoints) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ThirdPartyEndpoints.Merge(m, src)
+}
+func (m *ThirdPartyEndpoints) XXX_Size() int {
+	return xxx_messageInfo_ThirdPartyEndpoints.Size(m)
+}
+func (m *ThirdPartyEndpoints) XXX_DiscardUnknown() {
+	xxx_messageInfo_ThirdPartyEndpoints.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ThirdPartyEndpoints proto.InternalMessageInfo
+
+func (m *ThirdPartyEndpoints) GetObj() []*ThirdPartyEndpoint {
+	if m != nil {
+		return m.Obj
+	}
+	return nil
+}
+
 func init() {
+	proto.RegisterType((*Empty)(nil), "pb.Empty")
 	proto.RegisterType((*ServiceRequest)(nil), "pb.ServiceRequest")
 	proto.RegisterType((*ServicesRequest)(nil), "pb.ServicesRequest")
+	proto.RegisterType((*TenantRequest)(nil), "pb.TenantRequest")
 	proto.RegisterType((*StatusMessage)(nil), "pb.StatusMessage")
 	proto.RegisterMapType((map[string]string)(nil), "pb.StatusMessage.StatusEntry")
 	proto.RegisterType((*DiskMessage)(nil), "pb.DiskMessage")
@@ -471,57 +921,83 @@ func init() {
 	proto.RegisterMapType((map[string]string)(nil), "pb.DeployInfo.ReplicatsetEntry")
 	proto.RegisterMapType((map[string]string)(nil), "pb.DeployInfo.SecretsEntry")
 	proto.RegisterMapType((map[string]string)(nil), "pb.DeployInfo.ServicesEntry")
+	proto.RegisterType((*TenantResource)(nil), "pb.TenantResource")
+	proto.RegisterType((*AddThirdPartyEndpointsReq)(nil), "pb.AddThirdPartyEndpointsReq")
+	proto.RegisterType((*UpdThirdPartyEndpointsReq)(nil), "pb.UpdThirdPartyEndpointsReq")
+	proto.RegisterType((*DelThirdPartyEndpointsReq)(nil), "pb.DelThirdPartyEndpointsReq")
+	proto.RegisterType((*ThirdPartyEndpoint)(nil), "pb.ThirdPartyEndpoint")
+	proto.RegisterType((*ThirdPartyEndpoints)(nil), "pb.ThirdPartyEndpoints")
 }
 
 func init() { proto.RegisterFile("app_runtime_server.proto", fileDescriptor_f94cf1a886c479d6) }
 
 var fileDescriptor_f94cf1a886c479d6 = []byte{
-	// 720 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x95, 0x4f, 0x4f, 0xdb, 0x4c,
-	0x10, 0xc6, 0x93, 0x40, 0x42, 0x3c, 0x4e, 0x02, 0xec, 0xfb, 0x52, 0xb9, 0x01, 0x0a, 0xb8, 0x42,
-	0xe2, 0x50, 0xa5, 0x55, 0x5a, 0xd4, 0x00, 0x55, 0xa5, 0xa8, 0x54, 0x28, 0x12, 0xad, 0x90, 0x69,
-	0xcf, 0x91, 0x89, 0x07, 0x64, 0x11, 0xdb, 0x5b, 0xef, 0x06, 0xc9, 0xc7, 0x7e, 0xc1, 0xde, 0xfa,
-	0x45, 0xfa, 0x09, 0xaa, 0xfd, 0xe7, 0x38, 0x09, 0x12, 0x4a, 0x6f, 0xf6, 0x33, 0xf3, 0xdb, 0xf1,
-	0x3e, 0xb3, 0x3b, 0x06, 0xc7, 0xa7, 0x74, 0x98, 0x4e, 0x62, 0x1e, 0x46, 0x38, 0x64, 0x98, 0x3e,
-	0x60, 0xda, 0xa1, 0x69, 0xc2, 0x13, 0x52, 0xa1, 0x37, 0xee, 0x6b, 0x68, 0x5d, 0x63, 0xfa, 0x10,
-	0x8e, 0xd0, 0xc3, 0x1f, 0x13, 0x64, 0x9c, 0xec, 0x02, 0x30, 0xa5, 0x0c, 0xc3, 0xc0, 0x29, 0xef,
-	0x97, 0x8f, 0x2c, 0xcf, 0xd2, 0xca, 0x20, 0x70, 0xbb, 0xb0, 0xae, 0x01, 0x66, 0x88, 0x3d, 0xb0,
-	0xa7, 0x04, 0xd3, 0x08, 0xe4, 0x08, 0x73, 0x7f, 0x96, 0xa1, 0x79, 0xcd, 0x7d, 0x3e, 0x61, 0x5f,
-	0x90, 0x31, 0xff, 0x0e, 0xc9, 0x31, 0xd4, 0x98, 0x14, 0x9c, 0xf2, 0xfe, 0xca, 0x91, 0xdd, 0xdd,
-	0xed, 0xd0, 0x9b, 0xce, 0x4c, 0x8a, 0x7e, 0xfb, 0x1c, 0xf3, 0x34, 0xf3, 0x74, 0x72, 0xfb, 0x04,
-	0xec, 0x82, 0x4c, 0x36, 0x60, 0xe5, 0x1e, 0x33, 0x5d, 0x50, 0x3c, 0x92, 0xff, 0xa1, 0xfa, 0xe0,
-	0x8f, 0x27, 0xe8, 0x54, 0xa4, 0xa6, 0x5e, 0x4e, 0x2b, 0xbd, 0xb2, 0x9b, 0x81, 0x7d, 0x1e, 0xb2,
-	0x7b, 0xf3, 0x01, 0x6f, 0xa0, 0x1a, 0x84, 0xec, 0xde, 0xd4, 0x6f, 0x8b, 0xfa, 0x85, 0xb8, 0x7c,
-	0xd6, 0xc5, 0x55, 0x62, 0xbb, 0x07, 0x30, 0x15, 0x9f, 0x2a, 0x5d, 0x2e, 0x96, 0x3e, 0x85, 0x4d,
-	0x6d, 0x59, 0x9f, 0xd2, 0xab, 0x24, 0xb8, 0x0c, 0x19, 0x27, 0x87, 0xb0, 0x4a, 0x93, 0xc0, 0xd4,
-	0xdf, 0x94, 0xfb, 0x2f, 0x26, 0x79, 0x32, 0xec, 0xfe, 0xaa, 0x40, 0x73, 0x46, 0x7f, 0xa2, 0x3f,
-	0x64, 0x1b, 0xac, 0x00, 0xe9, 0x38, 0xc9, 0x44, 0x54, 0xb9, 0x50, 0x57, 0xc2, 0x20, 0x10, 0x9d,
-	0xd2, 0x41, 0x9e, 0x51, 0x74, 0x56, 0x54, 0xa7, 0x94, 0xf4, 0x2d, 0xa3, 0x48, 0x9e, 0x43, 0x9d,
-	0x26, 0xc1, 0x30, 0xf6, 0x23, 0x74, 0x56, 0x65, 0x74, 0x8d, 0x26, 0xc1, 0x57, 0x3f, 0x42, 0xb2,
-	0x05, 0x35, 0x11, 0x0a, 0xa9, 0x53, 0x55, 0xde, 0xd2, 0x24, 0x18, 0x50, 0xf1, 0x39, 0x42, 0xd6,
-	0xdd, 0xac, 0xa9, 0xcf, 0xa1, 0x49, 0xa0, 0xfa, 0x44, 0xfa, 0x00, 0xa3, 0x24, 0xe6, 0x7e, 0x18,
-	0x63, 0xca, 0x9c, 0x35, 0xb9, 0xd9, 0x83, 0x85, 0xcd, 0x76, 0x3e, 0xe5, 0x39, 0xca, 0xf3, 0x02,
-	0xd4, 0xbe, 0x84, 0xf5, 0xb9, 0xf0, 0x23, 0xee, 0xbf, 0x2c, 0xba, 0x6f, 0x77, 0x9b, 0xa2, 0x44,
-	0x4e, 0x15, 0x9b, 0xf1, 0x1d, 0xac, 0x5c, 0x27, 0x87, 0xd0, 0xca, 0x0b, 0xa9, 0x4d, 0xab, 0x25,
-	0x9b, 0xb9, 0x2a, 0xb7, 0x7e, 0x00, 0x8d, 0x08, 0xa3, 0x24, 0xcd, 0x86, 0xe3, 0x30, 0x0a, 0xb9,
-	0xac, 0x51, 0xf5, 0x6c, 0xa5, 0x5d, 0x0a, 0xc9, 0xfd, 0x5d, 0x05, 0x38, 0x57, 0x36, 0xc7, 0xb7,
-	0x09, 0xd9, 0x01, 0x4b, 0x2c, 0xc7, 0xa8, 0x3f, 0x32, 0x6b, 0x4e, 0x05, 0xe2, 0x42, 0x43, 0xf8,
-	0x85, 0xb7, 0x93, 0x31, 0x32, 0xe4, 0xba, 0x4d, 0x33, 0x1a, 0x79, 0x01, 0xba, 0x2f, 0x11, 0xc6,
-	0x7c, 0xb6, 0x53, 0x42, 0x21, 0xaf, 0xf4, 0xf9, 0x59, 0x95, 0x96, 0x3a, 0xf2, 0xfc, 0xe6, 0xf5,
-	0x3b, 0x57, 0x49, 0xa0, 0x9d, 0x94, 0x59, 0xa4, 0x07, 0x75, 0x7d, 0x44, 0x98, 0x53, 0x95, 0xc4,
-	0xce, 0x1c, 0x61, 0x2e, 0xb5, 0xa2, 0xf2, 0x6c, 0x72, 0x0c, 0x6b, 0x0c, 0x47, 0x29, 0x72, 0xd1,
-	0x5c, 0x01, 0x6e, 0x2f, 0x80, 0x32, 0xaa, 0x38, 0x93, 0x4b, 0xce, 0xc0, 0x0a, 0xe3, 0xbb, 0x14,
-	0x19, 0x43, 0xd3, 0xf6, 0xdd, 0x39, 0x70, 0x60, 0xe2, 0x0a, 0x9d, 0xe6, 0x93, 0x3e, 0xd8, 0x29,
-	0xd2, 0x71, 0x38, 0xf2, 0xb9, 0xb0, 0xa7, 0x2e, 0xf1, 0xbd, 0x39, 0xdc, 0x9b, 0x66, 0xa8, 0x05,
-	0x8a, 0x0c, 0x79, 0x96, 0x0f, 0x18, 0x4b, 0x5a, 0x67, 0x26, 0xc8, 0x7b, 0xb0, 0x72, 0x6f, 0x96,
-	0x99, 0x1f, 0xed, 0xb3, 0xfc, 0x1e, 0xfe, 0x03, 0x7c, 0x0a, 0x8d, 0xa2, 0x4d, 0x4b, 0xb1, 0x1f,
-	0xa0, 0x35, 0xeb, 0xd4, 0x52, 0xf4, 0x47, 0xd8, 0x98, 0x37, 0x6a, 0x19, 0xbe, 0xfb, 0xa7, 0x0c,
-	0xad, 0x3e, 0xa5, 0x9e, 0xfa, 0x7f, 0x5c, 0x67, 0xf1, 0x88, 0xf4, 0xa0, 0x71, 0x81, 0xbc, 0x4f,
-	0xa9, 0xbe, 0xe2, 0xff, 0x15, 0xae, 0xb3, 0xf9, 0x27, 0xb4, 0x37, 0x17, 0x06, 0xba, 0x5b, 0x22,
-	0xef, 0x00, 0x14, 0x29, 0x06, 0xe9, 0xe3, 0xdc, 0xfa, 0xdc, 0x20, 0x76, 0x4b, 0xe4, 0xc4, 0x50,
-	0xa2, 0x71, 0x84, 0x14, 0x28, 0x03, 0x6d, 0x2d, 0x0c, 0x14, 0x31, 0x62, 0xdd, 0x12, 0x39, 0x86,
-	0xe6, 0x05, 0xf2, 0xc2, 0xbd, 0x7c, 0x8c, 0x6e, 0xcd, 0x1e, 0x2c, 0xb7, 0x74, 0x53, 0x93, 0xff,
-	0xc7, 0xb7, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0xeb, 0x1e, 0xbb, 0x9c, 0x3b, 0x07, 0x00, 0x00,
+	// 1026 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x56, 0xdb, 0x6e, 0xdb, 0x46,
+	0x10, 0xd5, 0xdd, 0xd2, 0xc8, 0x92, 0xe3, 0x49, 0x9d, 0xd0, 0x4a, 0xdc, 0x24, 0x2c, 0x52, 0xf8,
+	0x21, 0x50, 0x0b, 0x17, 0x46, 0x1d, 0x27, 0x68, 0x21, 0xc4, 0x86, 0x2b, 0xc0, 0x4d, 0x0d, 0xda,
+	0x79, 0x16, 0x68, 0x72, 0xe3, 0x6e, 0x2d, 0x2e, 0xb7, 0xdc, 0xa5, 0x01, 0x3e, 0xb6, 0xbf, 0x90,
+	0x1f, 0xea, 0x17, 0xf4, 0xad, 0xff, 0x53, 0xec, 0x85, 0x14, 0x75, 0x09, 0x5c, 0xb7, 0x05, 0xf2,
+	0xb6, 0x3c, 0x3b, 0x67, 0x66, 0xe7, 0x0c, 0x67, 0x76, 0xc1, 0xf1, 0x39, 0x9f, 0x24, 0x29, 0x93,
+	0x34, 0x22, 0x13, 0x41, 0x92, 0x1b, 0x92, 0x0c, 0x79, 0x12, 0xcb, 0x18, 0x6b, 0xfc, 0xd2, 0x5d,
+	0x83, 0xe6, 0x71, 0xc4, 0x65, 0xe6, 0x7e, 0x05, 0xfd, 0x73, 0x92, 0xdc, 0xd0, 0x80, 0x78, 0xe4,
+	0xd7, 0x94, 0x08, 0x89, 0x3b, 0x00, 0xc2, 0x20, 0x13, 0x1a, 0x3a, 0xd5, 0xa7, 0xd5, 0xdd, 0x8e,
+	0xd7, 0xb1, 0xc8, 0x38, 0x74, 0xf7, 0x60, 0xc3, 0x12, 0x44, 0xce, 0x78, 0x02, 0xdd, 0x19, 0x43,
+	0x58, 0x0a, 0x14, 0x14, 0xe1, 0xbe, 0x80, 0xde, 0x05, 0x61, 0x3e, 0x93, 0x39, 0xe3, 0x11, 0x74,
+	0xa4, 0x06, 0x66, 0x21, 0xda, 0x06, 0x18, 0x87, 0xee, 0x6f, 0x55, 0xe8, 0x9d, 0x4b, 0x5f, 0xa6,
+	0xe2, 0x47, 0x22, 0x84, 0x7f, 0x45, 0x70, 0x1f, 0x5a, 0x42, 0x03, 0x4e, 0xf5, 0x69, 0x7d, 0xb7,
+	0xbb, 0xb7, 0x33, 0xe4, 0x97, 0xc3, 0x39, 0x13, 0xfb, 0x75, 0xcc, 0x64, 0x92, 0x79, 0xd6, 0x78,
+	0xf0, 0x12, 0xba, 0x25, 0x18, 0xef, 0x41, 0xfd, 0x9a, 0x64, 0x36, 0x9c, 0x5a, 0xe2, 0x67, 0xd0,
+	0xbc, 0xf1, 0xa7, 0x29, 0x71, 0x6a, 0x1a, 0x33, 0x1f, 0x87, 0xb5, 0x83, 0xaa, 0x9b, 0x41, 0xf7,
+	0x88, 0x8a, 0xeb, 0xfc, 0x00, 0x5f, 0x43, 0x33, 0xa4, 0xe2, 0x3a, 0x8f, 0x3f, 0x50, 0xf1, 0x4b,
+	0xfb, 0x7a, 0x6d, 0x83, 0x1b, 0xc3, 0xc1, 0x01, 0xc0, 0x0c, 0xbc, 0x2d, 0x74, 0xb5, 0x1c, 0xfa,
+	0x10, 0x36, 0xad, 0xc0, 0x23, 0xce, 0xcf, 0xe2, 0xf0, 0x94, 0x0a, 0x89, 0xcf, 0xa1, 0xc1, 0xe3,
+	0x30, 0x8f, 0xbf, 0xa9, 0xf3, 0x2f, 0x1b, 0x79, 0x7a, 0xdb, 0xfd, 0xb3, 0x06, 0xbd, 0x39, 0xfc,
+	0x96, 0x6a, 0xaa, 0x42, 0x84, 0x84, 0x4f, 0xe3, 0x4c, 0xed, 0x1a, 0x15, 0xda, 0x06, 0x18, 0x87,
+	0xaa, 0xae, 0x76, 0x53, 0x66, 0x9c, 0x38, 0x75, 0x53, 0x57, 0x03, 0x5d, 0x64, 0x9c, 0xe0, 0x36,
+	0xb4, 0x79, 0x1c, 0x4e, 0x98, 0x1f, 0x11, 0xa7, 0xa1, 0x77, 0xd7, 0x78, 0x1c, 0xbe, 0xf5, 0x23,
+	0x82, 0x5b, 0xd0, 0x52, 0x5b, 0x94, 0x3b, 0x4d, 0xa3, 0x2d, 0x8f, 0xc3, 0x31, 0x57, 0xc7, 0x51,
+	0xb0, 0xad, 0x66, 0xcb, 0x1c, 0x87, 0xc7, 0xa1, 0xa9, 0x13, 0x8e, 0x00, 0x82, 0x98, 0x49, 0x9f,
+	0x32, 0x92, 0x08, 0x67, 0x4d, 0x27, 0xfb, 0x6c, 0x29, 0xd9, 0xe1, 0x9b, 0xc2, 0xc6, 0x68, 0x5e,
+	0x22, 0x0d, 0x4e, 0x61, 0x63, 0x61, 0x7b, 0x85, 0xfa, 0x5f, 0x94, 0xd5, 0xef, 0xee, 0xf5, 0x54,
+	0x88, 0x82, 0x55, 0x2e, 0xc6, 0x3b, 0xe8, 0x14, 0x38, 0x3e, 0x87, 0x7e, 0x11, 0xc8, 0x24, 0x6d,
+	0x5c, 0xf6, 0x0a, 0x54, 0xa7, 0xfe, 0x0c, 0xd6, 0x23, 0x12, 0xc5, 0x49, 0x36, 0x99, 0xd2, 0x88,
+	0x4a, 0x1d, 0xa3, 0xee, 0x75, 0x0d, 0x76, 0xaa, 0x20, 0xf7, 0xaf, 0x26, 0xc0, 0x91, 0x91, 0x99,
+	0xbd, 0x8f, 0xf1, 0x31, 0x74, 0x94, 0x3b, 0xc1, 0xfd, 0x20, 0xf7, 0x39, 0x03, 0xd0, 0x85, 0x75,
+	0xa5, 0x17, 0x79, 0x9f, 0x4e, 0x89, 0x20, 0xd2, 0x96, 0x69, 0x0e, 0xc3, 0xcf, 0xc1, 0xd6, 0x25,
+	0x22, 0x4c, 0xce, 0x57, 0x4a, 0x21, 0xf8, 0xc2, 0xfe, 0x3f, 0x0d, 0x2d, 0xa9, 0xa3, 0xff, 0xdf,
+	0x22, 0xfe, 0xf0, 0x2c, 0x0e, 0xad, 0x92, 0xda, 0x0a, 0x0f, 0xa0, 0x6d, 0x7f, 0x11, 0xe1, 0x34,
+	0x35, 0xe3, 0xf1, 0x02, 0x23, 0x1f, 0x01, 0x86, 0x55, 0x58, 0xe3, 0x3e, 0xac, 0x09, 0x12, 0x24,
+	0x44, 0xaa, 0xe2, 0x2a, 0xe2, 0xa3, 0x25, 0xa2, 0xde, 0x35, 0xbc, 0xdc, 0x16, 0x5f, 0x41, 0x87,
+	0xb2, 0xab, 0x84, 0x08, 0x41, 0xf2, 0xb2, 0xef, 0x2c, 0x10, 0xc7, 0xf9, 0xbe, 0xa1, 0xce, 0xec,
+	0x71, 0x04, 0xdd, 0x84, 0xf0, 0x29, 0x0d, 0x7c, 0xa9, 0xe4, 0x69, 0x6b, 0xfa, 0x93, 0x05, 0xba,
+	0x37, 0xb3, 0x30, 0x0e, 0xca, 0x1c, 0x7c, 0x50, 0x0c, 0x98, 0x8e, 0x96, 0x2e, 0x9f, 0x20, 0xdf,
+	0x42, 0xa7, 0xd0, 0xe6, 0x2e, 0xf3, 0x63, 0xf0, 0xaa, 0xe8, 0xc3, 0x7f, 0x41, 0x3e, 0x84, 0xf5,
+	0xb2, 0x4c, 0x77, 0xe2, 0xbe, 0x86, 0xfe, 0xbc, 0x52, 0x77, 0x62, 0x7f, 0x07, 0xf7, 0x16, 0x85,
+	0xba, 0xd3, 0xd8, 0xfc, 0xa3, 0x0a, 0xfd, 0x7c, 0xd2, 0x8b, 0x38, 0x4d, 0x02, 0xa2, 0x86, 0x48,
+	0xc0, 0xd3, 0x49, 0x62, 0x26, 0xbf, 0x76, 0x53, 0xf7, 0x20, 0xe0, 0x69, 0xe9, 0x2e, 0x50, 0x06,
+	0xe5, 0x5e, 0x69, 0x07, 0x3c, 0xd5, 0x8d, 0xa2, 0x5a, 0xce, 0xf6, 0x52, 0xee, 0xa0, 0xae, 0x2d,
+	0x7a, 0x06, 0xcd, 0x7d, 0x2c, 0xb6, 0x5c, 0x63, 0xa9, 0xe5, 0xf0, 0x4b, 0xd8, 0x48, 0x52, 0xc6,
+	0x28, 0xbb, 0x9a, 0xa8, 0x9b, 0x91, 0xa5, 0x91, 0x9e, 0x4c, 0x75, 0xaf, 0x67, 0xe1, 0x11, 0xe7,
+	0x6f, 0xd3, 0xc8, 0xfd, 0xbd, 0x0a, 0xdb, 0xa3, 0x30, 0xbc, 0xf8, 0x99, 0x26, 0xe1, 0x99, 0x9f,
+	0xc8, 0xec, 0x98, 0x85, 0x3c, 0xa6, 0x4c, 0xaa, 0xeb, 0x0e, 0x11, 0x1a, 0x69, 0x5a, 0x0c, 0x52,
+	0xbd, 0x56, 0x02, 0x89, 0x62, 0x7a, 0xaa, 0x25, 0xf6, 0xa1, 0x46, 0xb9, 0xed, 0xc2, 0x1a, 0xe5,
+	0x8a, 0xc5, 0xe3, 0xc4, 0x1c, 0xab, 0xe9, 0xe9, 0xb5, 0x4a, 0x9b, 0x8a, 0x49, 0xcc, 0xa6, 0x94,
+	0x11, 0x7d, 0x92, 0xb6, 0xd7, 0xa6, 0xe2, 0x27, 0xfd, 0xad, 0x0f, 0xf1, 0x8e, 0x7f, 0xe2, 0x43,
+	0x8c, 0x60, 0xfb, 0x88, 0x4c, 0xff, 0xcb, 0x19, 0xdc, 0x0f, 0x55, 0xc0, 0x65, 0x07, 0xff, 0x63,
+	0x02, 0xb3, 0xc6, 0x6d, 0x96, 0x1b, 0x77, 0x3e, 0xb1, 0xd6, 0x42, 0x62, 0xdf, 0xc3, 0xfd, 0x15,
+	0x59, 0xe1, 0x2e, 0xd4, 0xe3, 0xcb, 0x5f, 0xec, 0x15, 0xfb, 0x40, 0xcd, 0x8f, 0x65, 0x2b, 0x4f,
+	0x99, 0xec, 0x7d, 0x68, 0x40, 0x7f, 0xc4, 0xb9, 0x67, 0x5e, 0x57, 0xe7, 0x19, 0x0b, 0xf0, 0x00,
+	0xd6, 0x4f, 0x88, 0x1c, 0x71, 0x6e, 0x6f, 0xb2, 0xfb, 0xa5, 0x5b, 0x2b, 0x7f, 0x28, 0x0d, 0x36,
+	0x97, 0xde, 0x2d, 0x6e, 0x05, 0x5f, 0x02, 0x18, 0xa6, 0x9a, 0x34, 0x88, 0x25, 0x5e, 0x4e, 0xdb,
+	0x5a, 0xba, 0x01, 0xd5, 0x9b, 0xc0, 0xad, 0xe0, 0x3e, 0xf4, 0x4e, 0x88, 0x2c, 0x5d, 0x24, 0xab,
+	0xd8, 0xfd, 0xf9, 0x49, 0xe8, 0x56, 0xf0, 0x35, 0x6c, 0x9e, 0x10, 0xb9, 0xd0, 0xa7, 0xfa, 0x6c,
+	0x73, 0xaf, 0xb4, 0x01, 0x96, 0x21, 0x63, 0xe6, 0x56, 0xf0, 0x07, 0x78, 0xa8, 0xc2, 0xaf, 0x52,
+	0x70, 0x55, 0xf8, 0x87, 0xab, 0x85, 0x14, 0x6e, 0x05, 0xdf, 0xc0, 0xd6, 0xca, 0x4e, 0x43, 0x3d,
+	0xfb, 0x3f, 0xda, 0x84, 0x83, 0x8e, 0xda, 0x36, 0xcf, 0x57, 0xed, 0x64, 0x65, 0xa7, 0x18, 0x27,
+	0x1f, 0x6d, 0xa2, 0x25, 0x27, 0x2b, 0x7f, 0x75, 0xb4, 0xb7, 0xd0, 0xf4, 0x1f, 0x38, 0xb9, 0x6c,
+	0xe9, 0xe7, 0xf5, 0x37, 0x7f, 0x07, 0x00, 0x00, 0xff, 0xff, 0xc9, 0x52, 0x20, 0xc0, 0x7a, 0x0b,
+	0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -537,9 +1013,13 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AppRuntimeSyncClient interface {
 	GetAppStatus(ctx context.Context, in *ServicesRequest, opts ...grpc.CallOption) (*StatusMessage, error)
-	GetAppDisk(ctx context.Context, in *ServicesRequest, opts ...grpc.CallOption) (*DiskMessage, error)
 	GetAppPods(ctx context.Context, in *ServiceRequest, opts ...grpc.CallOption) (*ServiceAppPodList, error)
 	GetDeployInfo(ctx context.Context, in *ServiceRequest, opts ...grpc.CallOption) (*DeployInfo, error)
+	GetTenantResource(ctx context.Context, in *TenantRequest, opts ...grpc.CallOption) (*TenantResource, error)
+	ListThirdPartyEndpoints(ctx context.Context, in *ServiceRequest, opts ...grpc.CallOption) (*ThirdPartyEndpoints, error)
+	AddThirdPartyEndpoint(ctx context.Context, in *AddThirdPartyEndpointsReq, opts ...grpc.CallOption) (*Empty, error)
+	UpdThirdPartyEndpoint(ctx context.Context, in *UpdThirdPartyEndpointsReq, opts ...grpc.CallOption) (*Empty, error)
+	DelThirdPartyEndpoint(ctx context.Context, in *DelThirdPartyEndpointsReq, opts ...grpc.CallOption) (*Empty, error)
 }
 
 type appRuntimeSyncClient struct {
@@ -553,15 +1033,6 @@ func NewAppRuntimeSyncClient(cc *grpc.ClientConn) AppRuntimeSyncClient {
 func (c *appRuntimeSyncClient) GetAppStatus(ctx context.Context, in *ServicesRequest, opts ...grpc.CallOption) (*StatusMessage, error) {
 	out := new(StatusMessage)
 	err := c.cc.Invoke(ctx, "/pb.AppRuntimeSync/GetAppStatus", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *appRuntimeSyncClient) GetAppDisk(ctx context.Context, in *ServicesRequest, opts ...grpc.CallOption) (*DiskMessage, error) {
-	out := new(DiskMessage)
-	err := c.cc.Invoke(ctx, "/pb.AppRuntimeSync/GetAppDisk", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -586,12 +1057,61 @@ func (c *appRuntimeSyncClient) GetDeployInfo(ctx context.Context, in *ServiceReq
 	return out, nil
 }
 
+func (c *appRuntimeSyncClient) GetTenantResource(ctx context.Context, in *TenantRequest, opts ...grpc.CallOption) (*TenantResource, error) {
+	out := new(TenantResource)
+	err := c.cc.Invoke(ctx, "/pb.AppRuntimeSync/GetTenantResource", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *appRuntimeSyncClient) ListThirdPartyEndpoints(ctx context.Context, in *ServiceRequest, opts ...grpc.CallOption) (*ThirdPartyEndpoints, error) {
+	out := new(ThirdPartyEndpoints)
+	err := c.cc.Invoke(ctx, "/pb.AppRuntimeSync/ListThirdPartyEndpoints", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *appRuntimeSyncClient) AddThirdPartyEndpoint(ctx context.Context, in *AddThirdPartyEndpointsReq, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/pb.AppRuntimeSync/AddThirdPartyEndpoint", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *appRuntimeSyncClient) UpdThirdPartyEndpoint(ctx context.Context, in *UpdThirdPartyEndpointsReq, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/pb.AppRuntimeSync/UpdThirdPartyEndpoint", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *appRuntimeSyncClient) DelThirdPartyEndpoint(ctx context.Context, in *DelThirdPartyEndpointsReq, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/pb.AppRuntimeSync/DelThirdPartyEndpoint", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AppRuntimeSyncServer is the server API for AppRuntimeSync service.
 type AppRuntimeSyncServer interface {
 	GetAppStatus(context.Context, *ServicesRequest) (*StatusMessage, error)
-	GetAppDisk(context.Context, *ServicesRequest) (*DiskMessage, error)
 	GetAppPods(context.Context, *ServiceRequest) (*ServiceAppPodList, error)
 	GetDeployInfo(context.Context, *ServiceRequest) (*DeployInfo, error)
+	GetTenantResource(context.Context, *TenantRequest) (*TenantResource, error)
+	ListThirdPartyEndpoints(context.Context, *ServiceRequest) (*ThirdPartyEndpoints, error)
+	AddThirdPartyEndpoint(context.Context, *AddThirdPartyEndpointsReq) (*Empty, error)
+	UpdThirdPartyEndpoint(context.Context, *UpdThirdPartyEndpointsReq) (*Empty, error)
+	DelThirdPartyEndpoint(context.Context, *DelThirdPartyEndpointsReq) (*Empty, error)
 }
 
 func RegisterAppRuntimeSyncServer(s *grpc.Server, srv AppRuntimeSyncServer) {
@@ -612,24 +1132,6 @@ func _AppRuntimeSync_GetAppStatus_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AppRuntimeSyncServer).GetAppStatus(ctx, req.(*ServicesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AppRuntimeSync_GetAppDisk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ServicesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AppRuntimeSyncServer).GetAppDisk(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/pb.AppRuntimeSync/GetAppDisk",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AppRuntimeSyncServer).GetAppDisk(ctx, req.(*ServicesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -670,6 +1172,96 @@ func _AppRuntimeSync_GetDeployInfo_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AppRuntimeSync_GetTenantResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TenantRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AppRuntimeSyncServer).GetTenantResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.AppRuntimeSync/GetTenantResource",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AppRuntimeSyncServer).GetTenantResource(ctx, req.(*TenantRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AppRuntimeSync_ListThirdPartyEndpoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AppRuntimeSyncServer).ListThirdPartyEndpoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.AppRuntimeSync/ListThirdPartyEndpoints",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AppRuntimeSyncServer).ListThirdPartyEndpoints(ctx, req.(*ServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AppRuntimeSync_AddThirdPartyEndpoint_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddThirdPartyEndpointsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AppRuntimeSyncServer).AddThirdPartyEndpoint(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.AppRuntimeSync/AddThirdPartyEndpoint",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AppRuntimeSyncServer).AddThirdPartyEndpoint(ctx, req.(*AddThirdPartyEndpointsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AppRuntimeSync_UpdThirdPartyEndpoint_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdThirdPartyEndpointsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AppRuntimeSyncServer).UpdThirdPartyEndpoint(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.AppRuntimeSync/UpdThirdPartyEndpoint",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AppRuntimeSyncServer).UpdThirdPartyEndpoint(ctx, req.(*UpdThirdPartyEndpointsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AppRuntimeSync_DelThirdPartyEndpoint_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DelThirdPartyEndpointsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AppRuntimeSyncServer).DelThirdPartyEndpoint(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.AppRuntimeSync/DelThirdPartyEndpoint",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AppRuntimeSyncServer).DelThirdPartyEndpoint(ctx, req.(*DelThirdPartyEndpointsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _AppRuntimeSync_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "pb.AppRuntimeSync",
 	HandlerType: (*AppRuntimeSyncServer)(nil),
@@ -679,16 +1271,32 @@ var _AppRuntimeSync_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AppRuntimeSync_GetAppStatus_Handler,
 		},
 		{
-			MethodName: "GetAppDisk",
-			Handler:    _AppRuntimeSync_GetAppDisk_Handler,
-		},
-		{
 			MethodName: "GetAppPods",
 			Handler:    _AppRuntimeSync_GetAppPods_Handler,
 		},
 		{
 			MethodName: "GetDeployInfo",
 			Handler:    _AppRuntimeSync_GetDeployInfo_Handler,
+		},
+		{
+			MethodName: "GetTenantResource",
+			Handler:    _AppRuntimeSync_GetTenantResource_Handler,
+		},
+		{
+			MethodName: "ListThirdPartyEndpoints",
+			Handler:    _AppRuntimeSync_ListThirdPartyEndpoints_Handler,
+		},
+		{
+			MethodName: "AddThirdPartyEndpoint",
+			Handler:    _AppRuntimeSync_AddThirdPartyEndpoint_Handler,
+		},
+		{
+			MethodName: "UpdThirdPartyEndpoint",
+			Handler:    _AppRuntimeSync_UpdThirdPartyEndpoint_Handler,
+		},
+		{
+			MethodName: "DelThirdPartyEndpoint",
+			Handler:    _AppRuntimeSync_DelThirdPartyEndpoint_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -8,7 +8,7 @@ releasedir=./.release
 distdir=${releasedir}/dist
 GO_VERSION=1.11
 
-VERSION=5.0
+VERSION=master
 buildTime=$(date +%F-%H)
 git_commit=$(git log -n 1 --pretty --format=%h)
 release_desc=${VERSION}-${git_commit}-${buildTime}
@@ -20,7 +20,7 @@ function prepare() {
     [ ! -d "$distdir/usr/local/" ] && mkdir -p $distdir/usr/local/bin
 }
 
-build_items=(api builder entrance grctl monitor mq node webcli worker eventlog)
+build_items=(api builder grctl monitor mq node webcli worker eventlog init-probe)
 
 function localbuild() {
 	if [ "$1" = "all" ];then

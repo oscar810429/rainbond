@@ -28,33 +28,30 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/go-chi/chi"
+	"github.com/goodrain/rainbond/api/handler"
 	"github.com/goodrain/rainbond/api/middleware"
 	api_model "github.com/goodrain/rainbond/api/model"
+	"github.com/goodrain/rainbond/cmd"
 	dbmodel "github.com/goodrain/rainbond/db/model"
 	mqclient "github.com/goodrain/rainbond/mq/client"
-
-	"github.com/pquerna/ffjson/ffjson"
-
-	"github.com/go-chi/chi"
-	"github.com/jinzhu/gorm"
-	"github.com/thedevsaddam/govalidator"
-
-	"github.com/goodrain/rainbond/api/handler"
 	httputil "github.com/goodrain/rainbond/util/http"
 	"github.com/goodrain/rainbond/worker/client"
-
-	"github.com/Sirupsen/logrus"
+	"github.com/jinzhu/gorm"
+	"github.com/pquerna/ffjson/ffjson"
 	"github.com/renstorm/fuzzysearch/fuzzy"
+	"github.com/thedevsaddam/govalidator"
 )
 
 //V2Routes v2Routes
 type V2Routes struct {
 	TenantStruct
 	AcpNodeStruct
-	EntranceStruct
 	EventLogStruct
 	AppStruct
 	GatewayStruct
+	ThirdPartyServiceController
 }
 
 //Show test
@@ -74,14 +71,15 @@ func (v2 *V2Routes) Show(w http.ResponseWriter, r *http.Request) {
 	//     schema:
 	//       "$ref": "#/responses/commandResponse"
 	//     description: 统一返回格式
-	w.Write([]byte("v2 urls"))
+	w.Write([]byte(cmd.GetVersion()))
 }
 
-// show health status
+//Health show health status
 func (v2 *V2Routes) Health(w http.ResponseWriter, r *http.Request) {
 	httputil.ReturnSuccess(r, w, map[string]string{"status": "health", "info": "api service health"})
 }
 
+//AlertManagerWebHook -
 func (v2 *V2Routes) AlertManagerWebHook(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("=======>webhook")
 	in, err := ioutil.ReadAll(r.Body)
@@ -96,6 +94,7 @@ func (v2 *V2Routes) AlertManagerWebHook(w http.ResponseWriter, r *http.Request) 
 
 }
 
+//Version -
 func (v2 *V2Routes) Version(w http.ResponseWriter, r *http.Request) {
 	httputil.ReturnSuccess(r, w, map[string]string{"version": os.Getenv("RELEASE_DESC")})
 }
@@ -154,6 +153,7 @@ func (t *TenantStruct) TenantResources(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	rep, err := handler.GetTenantManager().GetTenantsResources(&tr)
 	if err != nil {
 		httputil.ReturnError(r, w, 500, fmt.Sprintf("get resources error, %v", err))
@@ -787,6 +787,7 @@ func (t *TenantStruct) StatusServiceList(w http.ResponseWriter, r *http.Request)
 	httputil.ReturnSuccess(r, w, info)
 }
 
+//Label -
 func (t *TenantStruct) Label(w http.ResponseWriter, r *http.Request) {
 	var req api_model.LabelsStruct
 	ok := httputil.ValidatorRequestStructAndErrorResponse(r, w, &req, nil)
@@ -837,7 +838,6 @@ func (t *TenantStruct) AddLabel(w http.ResponseWriter, r *http.Request, labels *
 
 // DeleteLabel deletes labels
 func (t *TenantStruct) DeleteLabel(w http.ResponseWriter, r *http.Request, labels *api_model.LabelsStruct) {
-	logrus.Debugf("delete label")
 	serviceID := r.Context().Value(middleware.ContextKey("service_id")).(string)
 	if err := handler.GetServiceManager().DeleteLabel(labels, serviceID); err != nil {
 		httputil.ReturnError(r, w, 500, fmt.Sprintf("delete node label failure, %v", err))
@@ -846,9 +846,8 @@ func (t *TenantStruct) DeleteLabel(w http.ResponseWriter, r *http.Request, label
 	httputil.ReturnSuccess(r, w, nil)
 }
 
-// Update updates labels
+//UpdateLabel Update updates labels
 func (t *TenantStruct) UpdateLabel(w http.ResponseWriter, r *http.Request, labels *api_model.LabelsStruct) {
-	logrus.Debugf("update label")
 	serviceID := r.Context().Value(middleware.ContextKey("service_id")).(string)
 	if err := handler.GetServiceManager().UpdateLabel(labels, serviceID); err != nil {
 		httputil.ReturnError(r, w, 500, fmt.Sprintf("error updating label: %v", err))
@@ -1388,14 +1387,10 @@ func (t *TenantStruct) deletePortController(w http.ResponseWriter, r *http.Reque
 //       "$ref": "#/responses/commandResponse"
 //     description: 统一返回格式
 func (t *TenantStruct) PortOuterController(w http.ResponseWriter, r *http.Request) {
-	logrus.Debugf("Exec PortOuterController...")
 	var data api_model.ServicePortInnerOrOuter
 	if !httputil.ValidatorRequestStructAndErrorResponse(r, w, &(data.Body), nil) {
 		return
 	}
-	req, _ := json.Marshal(data)
-	logrus.Debugf("request uri is: %v", r.RequestURI)
-	logrus.Debugf("request body is: %v", string(req))
 
 	serviceID := r.Context().Value(middleware.ContextKey("service_id")).(string)
 	tenantName := r.Context().Value(middleware.ContextKey("tenant_name")).(string)
@@ -1433,7 +1428,12 @@ func (t *TenantStruct) PortOuterController(w http.ResponseWriter, r *http.Reques
 		rc["port"] = fmt.Sprintf("%v", vsPort.Port)
 	}
 
-	if err := handler.GetGatewayHandler().SendTask(serviceID, "port-outer"); err != nil {
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": serviceID,
+		"action":     "port-" + data.Body.Operation,
+		"port":       containerPort,
+		"is_inner":   false,
+	}); err != nil {
 		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
 	}
 
@@ -1487,7 +1487,12 @@ func (t *TenantStruct) PortInnerController(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	if err := handler.GetGatewayHandler().SendTask(serviceID, "port-inner"); err != nil {
+	if err := handler.GetGatewayHandler().SendTask(map[string]interface{}{
+		"service_id": serviceID,
+		"action":     "port-" + data.Body.Operation,
+		"port":       containerPort,
+		"is_inner":   true,
+	}); err != nil {
 		logrus.Errorf("send runtime message about gateway failure %s", err.Error())
 	}
 
@@ -1608,6 +1613,7 @@ func (t *TenantStruct) AddProbe(w http.ResponseWriter, r *http.Request) {
 	tspD.Scheme = tsp.Scheme
 	tspD.SuccessThreshold = tsp.SuccessThreshold
 	tspD.TimeoutSecond = tsp.TimeoutSecond
+	tspD.FailureAction = tsp.FailureAction
 	//注意端口问题
 	if err := handler.GetServiceManager().ServiceProbe(&tspD, "add"); err != nil {
 		httputil.ReturnError(r, w, 500, fmt.Sprintf("add service probe error, %v", err))

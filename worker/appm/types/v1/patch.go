@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/Sirupsen/logrus"
+
 	"github.com/goodrain/rainbond/util"
 
 	v1 "k8s.io/api/apps/v1"
@@ -38,7 +40,8 @@ func (a *AppService) SetUpgradePatch(new *AppService) error {
 		if len(statefulsetPatch) == 0 {
 			return fmt.Errorf("no upgrade")
 		}
-		a.UpgradePatch["statefulset"] = statefulsetPatch
+		logrus.Debugf("stateful patch %s", string(statefulsetPatch))
+		new.UpgradePatch["statefulset"] = statefulsetPatch
 	}
 	if a.deployment != nil && new.deployment != nil {
 		deploymentPatch, err := getDeploymentModifiedConfiguration(a.deployment, new.deployment)
@@ -48,7 +51,7 @@ func (a *AppService) SetUpgradePatch(new *AppService) error {
 		if len(deploymentPatch) == 0 {
 			return fmt.Errorf("no upgrade")
 		}
-		a.UpgradePatch["deployment"] = deploymentPatch
+		new.UpgradePatch["deployment"] = deploymentPatch
 	}
 	return nil
 }
@@ -140,6 +143,7 @@ func getChange(old, new EncodeNode) *EncodeNode {
 	return &result
 }
 
+//stateful label can not be patch
 func getStatefulsetModifiedConfiguration(old, new *v1.StatefulSet) ([]byte, error) {
 	old.Status = new.Status
 	oldNeed := getAllowFields(old)
